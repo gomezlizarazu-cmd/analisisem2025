@@ -12,6 +12,9 @@ make_value_box(title, value, subtitle = NULL, meta = NULL)
 \item{value}{Valor principal que se desea mostrar.}
 
 \item{subtitle}{Texto opcional de apoyo.}
+
+\item{meta}{Meta opcional usada para calcular porcentaje de cumplimiento
+y color semaforizado.}
 }
 \value{
 Un objeto HTML tipo \code{shiny.tag}.

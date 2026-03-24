@@ -53,6 +53,8 @@ col_first_existing <- function(data, candidates) {
 #' @param title Título de la caja.
 #' @param value Valor principal que se desea mostrar.
 #' @param subtitle Texto opcional de apoyo.
+#' @param meta Meta opcional usada para calcular porcentaje de cumplimiento
+#'   y color semaforizado.
 #'
 #' @return Un objeto HTML tipo \code{shiny.tag}.
 #'
@@ -220,6 +222,9 @@ arreglar_utf8_df <- function(df) {
 #' @param labels Vector nombrado opcional para renombrar columnas.
 #'   Ejemplo: c(col1 = "Columna 1", col2 = "Columna 2").
 #' @param decimals Número de decimales para columnas numéricas.
+#' @param pct_cols Vector opcional con nombres de columnas a formatear como
+#'   porcentajes.
+#' @param pct_decimals Número de decimales para columnas de porcentaje.
 #' @param usar_separador_miles Si `TRUE`, usa separador de miles.
 #' @param centrar_numericas Si `TRUE`, centra columnas numéricas.
 #' @param centrar_todas Si `TRUE`, centra todas las columnas.

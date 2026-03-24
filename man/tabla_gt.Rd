@@ -30,6 +30,11 @@ Ejemplo: c(col1 = "Columna 1", col2 = "Columna 2").}
 
 \item{decimals}{Número de decimales para columnas numéricas.}
 
+\item{pct_cols}{Vector opcional con nombres de columnas a formatear como
+porcentajes.}
+
+\item{pct_decimals}{Número de decimales para columnas de porcentaje.}
+
 \item{usar_separador_miles}{Si \code{TRUE}, usa separador de miles.}
 
 \item{centrar_numericas}{Si \code{TRUE}, centra columnas numéricas.}

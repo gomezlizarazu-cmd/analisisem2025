@@ -82,3 +82,87 @@ Variables de diagnóstico:
 ```r
 devtools::load_all()
 devtools::check()
+```
+
+---
+
+## Niveles de granularidad (CRÍTICO)
+
+La encuesta tiene estructura jerárquica:
+
+- Vivienda: DIRECTORIO
+- Hogar: DIRECTORIO + SECUENCIA_P
+- Persona: DIRECTORIO + SECUENCIA_P + ORDEN
+
+### Regla fundamental
+
+Un join puede:
+
+1. Mantener nivel
+2. Subir nivel (agregación)
+3. Bajar nivel (expansión)
+
+### Bajar nivel NO es error si es intencional
+
+Ejemplo:
+- Base: hogar
+- Se une capítulo de personas
+
+Resultado:
+- Cada hogar se repite por número de personas
+
+✔️ Esto es correcto
+
+### PERO debe cumplirse:
+
+- El cambio de nivel debe ser explícito
+- No debe ser implícito ni accidental
+
+---
+
+## Validación de joins
+
+Antes de cualquier join, el agente debe identificar:
+
+- nivel de la base
+- nivel del capítulo a unir
+
+Después del join:
+
+- validar si el cambio de filas es esperado
+- advertir si hay expansión no intencional
+
+---
+
+## Interpretación de conteos
+
+Las métricas pueden basarse en:
+
+- llaves únicas (ej: hogares)
+- filas reales (ej: personas)
+
+⚠️ Nunca asumir que nrow() representa la unidad analítica
+
+---
+
+## Acciones esperadas del agente ante riesgos
+
+Cuando el agente detecte:
+
+### Posible duplicación por join
+Debe:
+- reportar el cambio en nrow()
+- identificar el nivel antes y después
+- NO corregir automáticamente
+
+### Inconsistencia en conteos
+Debe:
+- comparar llaves únicas vs filas
+- señalar posibles causas (join, duplicados, agregación)
+
+### Uso de llaves incompletas
+Debe:
+- advertir explícitamente
+- sugerir llaves correctas según nivel
+
+⚠️ El agente nunca debe modificar la lógica sin instrucción explícita del usuario
