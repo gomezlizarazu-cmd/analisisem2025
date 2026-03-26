@@ -23,5 +23,7 @@ Imports:
     tibble,
     tidyselect
 Suggests:
-    openxlsx
+    openxlsx,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
 RoxygenNote: 7.3.3

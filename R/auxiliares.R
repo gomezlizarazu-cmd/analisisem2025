@@ -22,6 +22,34 @@ n_distinct_safe <- function(data, vars) {
   data %>% dplyr::distinct(dplyr::across(dplyr::all_of(vars))) %>% nrow()
 }
 
+# Expande la presencia del capitulo C a todos los hogares de una vivienda
+# cuando al menos un hogar del DIRECTORIO tiene registro en C.
+expandir_presencia_capitulo_c <- function(base_hogares, df_c) {
+  if (is.null(base_hogares) || !is.data.frame(base_hogares) || nrow(base_hogares) == 0) {
+    return(base_hogares)
+  }
+
+  req_base <- c("DIRECTORIO", "SECUENCIA_P")
+  if (!all(req_base %in% names(base_hogares))) {
+    stop("`base_hogares` debe contener DIRECTORIO y SECUENCIA_P.")
+  }
+
+  if (is.null(df_c) || !is.data.frame(df_c) || nrow(df_c) == 0 || !"DIRECTORIO" %in% names(df_c)) {
+    return(base_hogares[0, req_base, drop = FALSE])
+  }
+
+  base_hogares <- normalize_keys(base_hogares, req_base) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P)
+
+  directorios_con_c <- df_c %>%
+    normalize_keys("DIRECTORIO") %>%
+    dplyr::distinct(DIRECTORIO)
+
+  base_hogares %>%
+    dplyr::inner_join(directorios_con_c, by = "DIRECTORIO") %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P)
+}
+
 #' Encontrar la primera columna existente dentro de un conjunto de candidatos
 #'
 #' Busca, en orden, el primer nombre de variable de \code{candidates} que
