@@ -263,19 +263,17 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
         .before = 1
       )
 
-    no_pegan_paso <- dplyr::bind_rows(
-      comp %>%
-        dplyr::filter(!is.na(en_base) & is.na(en_nuevo)) %>%
-        dplyr::mutate(tipo_no_pega = paste0(nombre_acumulado, "_sin_", cap_nuevo)),
-      comp %>%
-        dplyr::filter(is.na(en_base) & !is.na(en_nuevo)) %>%
-        dplyr::mutate(tipo_no_pega = paste0(cap_nuevo, "_sin_", nombre_acumulado))
-    ) %>%
+    no_pegan_paso <- comp %>%
+      dplyr::filter(is.na(en_base) | is.na(en_nuevo)) %>%
       dplyr::mutate(
         paso = i - 1,
         base_acumulada = nombre_acumulado,
         cap_nuevo = cap_nuevo,
-        .before = 1
+        tipo_no_pega = dplyr::case_when(
+          !is.na(en_base) & is.na(en_nuevo) ~ paste0(nombre_acumulado, "_sin_", cap_nuevo),
+          is.na(en_base) & !is.na(en_nuevo) ~ paste0(cap_nuevo, "_sin_", nombre_acumulado),
+          TRUE ~ NA_character_
+        )
       )
 
     resumen_lista[[i - 1]] <- resumen_paso
@@ -283,15 +281,17 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
 
     if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
       acumulado <- acumular_join(
-        x = acumulado,
-        y = df2_keys %>% dplyr::select(dplyr::all_of(keys_use)),
+        x = acumulado %>% normalize_keys(keys_use),
+        y = df2_keys %>%
+          dplyr::select(dplyr::all_of(keys_use)) %>%
+          normalize_keys(keys_use),
         by = keys_use,
         join = join
       )
     } else {
       acumulado <- acumular_join(
-        x = acumulado,
-        y = df_nuevo,
+        x = acumulado %>% normalize_keys(keys_use),
+        y = df_nuevo %>% normalize_keys(keys_use),
         by = keys_use,
         join = join
       )
@@ -407,17 +407,22 @@ pipeline_encuestas_completas <- function(dfs, caps_orden) {
     n_base <- nrow(base_keys)
     n_nuevo <- nrow(nuevo_keys)
 
-    # inner sobre llaves para medir supervivencia real
     result_keys <- dplyr::inner_join(base_keys, nuevo_keys, by = keys_use)
     n_resultado <- nrow(result_keys)
 
     if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
-      acumulado <- dplyr::semi_join(acumulado, nuevo_keys, by = keys_use)
+      acumulado <- dplyr::semi_join(
+        acumulado %>% normalize_keys(keys_use),
+        nuevo_keys %>% normalize_keys(keys_use),
+        by = keys_use
+      )
     } else {
-      acumulado <- dplyr::inner_join(acumulado, df_nuevo, by = keys_use)
+      acumulado <- dplyr::inner_join(
+        acumulado %>% normalize_keys(keys_use),
+        df_nuevo %>% normalize_keys(keys_use),
+        by = keys_use
+      )
     }
-    nombre_acumulado <- paste0(nombre_acumulado, "_", cap_nuevo)
-    acumulados[[nombre_acumulado]] <- acumulado
 
     resumen[[i]] <- tibble::tibble(
       paso = i - 1,

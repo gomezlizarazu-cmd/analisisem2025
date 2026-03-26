@@ -22,8 +22,50 @@ n_distinct_safe <- function(data, vars) {
   data %>% dplyr::distinct(dplyr::across(dplyr::all_of(vars))) %>% nrow()
 }
 
-# Expande la presencia del capitulo C a todos los hogares de una vivienda
-# cuando al menos un hogar del DIRECTORIO tiene registro en C.
+#' Expande la presencia del capítulo C a nivel vivienda
+#'
+#' Identifica y expande la presencia del capítulo C a nivel vivienda. Marca como presentes en capítulo C a todos los hogares de una vivienda
+#' (`DIRECTORIO`) cuando al menos uno de sus hogares tiene registro en `df_c`.
+#' Esta función sirve para corregir la lógica de cruce del capítulo C cuando
+#' dicho capítulo aplica solo al primer hogar de la vivienda.
+#'
+#' @param base_hogares `data.frame` con los hogares base a evaluar. Debe contener
+#'   las columnas `DIRECTORIO` y `SECUENCIA_P`.
+#' @param df_c `data.frame` del capítulo C. Debe contener al menos la columna
+#'   `DIRECTORIO`.
+#'
+#' @return Un `data.frame` con las columnas `DIRECTORIO` y `SECUENCIA_P`,
+#' correspondiente al subconjunto de `base_hogares` cuya vivienda
+#' presenta información en el capítulo C.
+#'
+#' @details
+#' La función no agrega columnas; retorna únicamente los hogares cuya
+#' vivienda tiene presencia en capítulo C.
+#'
+#' La lógica es a nivel vivienda, no a nivel hogar. Si cualquier hogar del mismo
+#' `DIRECTORIO` aparece en `df_c`, entonces se considera que la vivienda tiene
+#' presencia en capítulo C y esa presencia se expande a todos sus hogares en
+#' `base_hogares`.
+#'
+#' Si `base_hogares` es `NULL`, no es un `data.frame` o está vacío, la función
+#' retorna `base_hogares` sin modificar. Si `df_c` es `NULL`, no es un
+#' `data.frame`, está vacío o no contiene `DIRECTORIO`, retorna un `data.frame`
+#' vacío con las columnas `DIRECTORIO` y `SECUENCIA_P`.
+#'
+#' @examples
+#' base_hogares <- data.frame(
+#'   DIRECTORIO = c(1, 1, 2),
+#'   SECUENCIA_P = c(1, 2, 1)
+#' )
+#'
+#' df_c <- data.frame(
+#'   DIRECTORIO = c(1),
+#'   SECUENCIA_P = c(1)
+#' )
+#'
+#' expandir_presencia_capitulo_c(base_hogares, df_c)
+#'
+#' @export
 expandir_presencia_capitulo_c <- function(base_hogares, df_c) {
   if (is.null(base_hogares) || !is.data.frame(base_hogares) || nrow(base_hogares) == 0) {
     return(base_hogares)
