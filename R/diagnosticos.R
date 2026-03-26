@@ -170,6 +170,8 @@ diagnostico_pega_caps <- function(dfs, cap1, cap2) {
 #' @export
 diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
 
+  llaves_std <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+
   if (!is.list(dfs) || length(dfs) == 0) {
     stop("`dfs` debe ser una lista nombrada de data frames.")
   }
@@ -204,6 +206,10 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
     }
   }
 
+  dfs <- lapply(dfs, function(df) {
+    normalize_keys(df, intersect(llaves_std, names(df)))
+  })
+
   cap_base <- caps_orden[1]
   acumulado <- dfs[[cap_base]]
   nombre_acumulado <- cap_base
@@ -218,7 +224,7 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
     cap_nuevo <- caps_orden[i]
     df_nuevo <- dfs[[cap_nuevo]]
 
-    keys_acum <- intersect(c("DIRECTORIO", "SECUENCIA_P", "ORDEN"), names(acumulado))
+    keys_acum <- intersect(llaves_std, names(acumulado))
     keys_nuevo <- get_join_keys(cap_nuevo)
     keys_use <- intersect(keys_acum, keys_nuevo)
 
@@ -229,18 +235,14 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
       )
     }
 
-    df1_keys <- acumulado %>%
-      normalize_keys(keys_use) %>%
-      dplyr::distinct(dplyr::across(dplyr::all_of(keys_use))) %>%
+    df1_keys <- extraer_llaves_unicas(acumulado, keys_use) %>%
       dplyr::mutate(en_base = 1L)
 
     if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
       df2_keys <- expandir_presencia_capitulo_c(df1_keys, df_nuevo) %>%
         dplyr::mutate(en_nuevo = 1L)
     } else {
-      df2_keys <- df_nuevo %>%
-        normalize_keys(keys_use) %>%
-        dplyr::distinct(dplyr::across(dplyr::all_of(keys_use))) %>%
+      df2_keys <- extraer_llaves_unicas(df_nuevo, keys_use) %>%
         dplyr::mutate(en_nuevo = 1L)
     }
 
@@ -281,17 +283,15 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
 
     if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
       acumulado <- acumular_join(
-        x = acumulado %>% normalize_keys(keys_use),
-        y = df2_keys %>%
-          dplyr::select(dplyr::all_of(keys_use)) %>%
-          normalize_keys(keys_use),
+        x = acumulado,
+        y = df2_keys %>% dplyr::select(dplyr::all_of(keys_use)),
         by = keys_use,
         join = join
       )
     } else {
       acumulado <- acumular_join(
-        x = acumulado %>% normalize_keys(keys_use),
-        y = df_nuevo %>% normalize_keys(keys_use),
+        x = acumulado,
+        y = df_nuevo,
         by = keys_use,
         join = join
       )
@@ -328,6 +328,8 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
 #' @export
 pipeline_encuestas_completas <- function(dfs, caps_orden) {
 
+  llaves_std <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+
   if (!is.list(dfs) || length(dfs) == 0) {
     stop("`dfs` debe ser una lista nombrada de data frames.")
   }
@@ -348,7 +350,9 @@ pipeline_encuestas_completas <- function(dfs, caps_orden) {
     stop("Estos capítulos no están en `dfs`: ", paste(faltan, collapse = ", "))
   }
 
-  llaves_std <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+  dfs <- lapply(dfs, function(df) {
+    normalize_keys(df, intersect(llaves_std, names(df)))
+  })
 
   acumulado <- dfs[[caps_orden[1]]]
   nombre_acumulado <- caps_orden[1]
@@ -360,9 +364,7 @@ pipeline_encuestas_completas <- function(dfs, caps_orden) {
 
   # fila inicial
   keys_ini <- intersect(llaves_std, names(acumulado))
-  n_ini <- acumulado %>%
-    normalize_keys(keys_ini) %>%
-    dplyr::distinct(dplyr::across(dplyr::all_of(keys_ini))) %>%
+  n_ini <- extraer_llaves_unicas(acumulado, keys_ini) %>%
     nrow()
 
   resumen[[1]] <- tibble::tibble(
@@ -392,16 +394,12 @@ pipeline_encuestas_completas <- function(dfs, caps_orden) {
       )
     }
 
-    base_keys <- acumulado %>%
-      normalize_keys(keys_use) %>%
-      dplyr::distinct(dplyr::across(dplyr::all_of(keys_use)))
+    base_keys <- extraer_llaves_unicas(acumulado, keys_use)
 
     if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
       nuevo_keys <- expandir_presencia_capitulo_c(base_keys, df_nuevo)
     } else {
-      nuevo_keys <- df_nuevo %>%
-        normalize_keys(keys_use) %>%
-        dplyr::distinct(dplyr::across(dplyr::all_of(keys_use)))
+      nuevo_keys <- extraer_llaves_unicas(df_nuevo, keys_use)
     }
 
     n_base <- nrow(base_keys)
@@ -411,17 +409,9 @@ pipeline_encuestas_completas <- function(dfs, caps_orden) {
     n_resultado <- nrow(result_keys)
 
     if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
-      acumulado <- dplyr::semi_join(
-        acumulado %>% normalize_keys(keys_use),
-        nuevo_keys %>% normalize_keys(keys_use),
-        by = keys_use
-      )
+      acumulado <- dplyr::semi_join(acumulado, nuevo_keys, by = keys_use)
     } else {
-      acumulado <- dplyr::inner_join(
-        acumulado %>% normalize_keys(keys_use),
-        df_nuevo %>% normalize_keys(keys_use),
-        by = keys_use
-      )
+      acumulado <- dplyr::inner_join(acumulado, df_nuevo, by = keys_use)
     }
 
     resumen[[i]] <- tibble::tibble(

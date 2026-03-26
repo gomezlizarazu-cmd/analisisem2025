@@ -72,18 +72,8 @@ clasificar_completitud_campo <- function(
     dplyr::transmute(
       DIRECTORIO,
       SECUENCIA_P,
-      hogar_con_info = .data$NHCCPCTRL1 == 1,
       hogar_completo = .data$NHCCPCTRL1 == 1 & .data$RES_HOG == 1,
-      hogar_incompleto = .data$NHCCPCTRL1 == 1 & .data$RES_HOG == 2,
-      estado_hog = dplyr::case_when(
-        .data$NHCCPCTRL1 == 1 & .data$RES_HOG == 1 ~ "con_info_completo",
-        .data$NHCCPCTRL1 == 1 & .data$RES_HOG == 2 ~ "con_info_incompleto",
-        .data$NHCCPCTRL1 == 2 & .data$NHCCPCTRL1A == 1 ~ "rechazo",
-        .data$NHCCPCTRL1 == 2 & .data$NHCCPCTRL1A == 2 ~ "personas_ocupadas",
-        .data$NHCCPCTRL1 == 2 & .data$NHCCPCTRL1A == 3 ~ "nadie_en_hogar",
-        .data$NHCCPCTRL1 == 2 & .data$NHCCPCTRL1A == 4 ~ "ausente_temporal",
-        TRUE ~ "sin_clasificar"
-      )
+      hogar_incompleto = .data$NHCCPCTRL1 == 1 & .data$RES_HOG == 2
     ) %>%
     dplyr::group_by(.data$DIRECTORIO) %>%
     dplyr::summarise(
@@ -92,8 +82,7 @@ clasificar_completitud_campo <- function(
       hogares_incompletos = sum(.data$hogar_incompleto, na.rm = TRUE),
       todos_hogares_completos = all(.data$hogar_completo, na.rm = TRUE),
       .groups = "drop"
-    ) %>%
-    normalize_keys("DIRECTORIO")
+    )
 
   # -------
   # Persona
@@ -103,18 +92,9 @@ clasificar_completitud_campo <- function(
       DIRECTORIO,
       SECUENCIA_P,
       ORDEN,
-      persona_con_info = .data$NPCEPCTRL1 == 1,
       persona_completa = .data$NPCEPCTRL1 == 1 & .data$RES_PER == 1,
       persona_incompleta = .data$NPCEPCTRL1 == 1 & .data$RES_PER == 2,
-      menor_10 = suppressWarnings(as.numeric(.data$NPCEP4)) < 10,
-      estado_per = dplyr::case_when(
-        .data$NPCEPCTRL1 == 1 & .data$RES_PER == 1 ~ "con_info_completo",
-        .data$NPCEPCTRL1 == 1 & .data$RES_PER == 2 ~ "con_info_incompleto",
-        .data$NPCEPCTRL1 == 2 & .data$NPCEPCTRL1A == 1 ~ "rechazo",
-        .data$NPCEPCTRL1 == 2 & .data$NPCEPCTRL1A == 2 ~ "ocupado",
-        .data$NPCEPCTRL1 == 2 & .data$NPCEPCTRL1A == 3 ~ "ausente_temporal",
-        TRUE ~ "sin_clasificar"
-      )
+      menor_10 = suppressWarnings(as.numeric(.data$NPCEP4)) < 10
     ) %>%
     dplyr::group_by(.data$DIRECTORIO) %>%
     dplyr::summarise(
@@ -124,11 +104,9 @@ clasificar_completitud_campo <- function(
       menores_10 = sum(.data$menor_10, na.rm = TRUE),
       todas_personas_completas = all(.data$persona_completa, na.rm = TRUE),
       .groups = "drop"
-    ) %>%
-    normalize_keys("DIRECTORIO")
+    )
 
   salida <- viv_micro %>%
-    normalize_keys("DIRECTORIO") %>%
     dplyr::left_join(hog_micro, by = "DIRECTORIO") %>%
     dplyr::left_join(per_micro, by = "DIRECTORIO") %>%
     dplyr::mutate(
