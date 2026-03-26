@@ -38,6 +38,22 @@ preparar_df_exportacion <- function(df) {
   arreglar_utf8_df(df)
 }
 
+preparar_caps_flujo <- function(caps_orden) {
+  caps_orden <- toupper(caps_orden)
+  caps_excluidos <- intersect(caps_orden, names(Edad_objeto))
+  caps_flujo <- setdiff(caps_orden, caps_excluidos)
+
+  if (length(caps_excluidos) > 0) {
+    message(
+      "Se excluyen del flujo secuencial los capítulos condicionados por edad: ",
+      paste(caps_excluidos, collapse = ", "),
+      ". Evalúelos con la lógica de completitud por elegibilidad."
+    )
+  }
+
+  caps_flujo
+}
+
 #' Expande la presencia del capítulo C a nivel vivienda
 #'
 #' Identifica y expande la presencia del capítulo C a nivel vivienda. Marca como presentes en capítulo C a todos los hogares de una vivienda

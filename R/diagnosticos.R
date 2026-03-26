@@ -187,7 +187,11 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
   }
 
   names(dfs) <- toupper(names(dfs))
-  caps_orden <- toupper(caps_orden)
+  caps_orden <- preparar_caps_flujo(caps_orden)
+
+  if (length(caps_orden) < 2) {
+    stop("`caps_orden` debe contener al menos 2 capítulos no condicionados por edad.")
+  }
 
   if (!all(caps_orden %in% names(dfs))) {
     faltan <- setdiff(caps_orden, names(dfs))
@@ -341,7 +345,11 @@ pipeline_encuestas_completas <- function(dfs, caps_orden) {
   }
 
   names(dfs) <- toupper(names(dfs))
-  caps_orden <- toupper(caps_orden)
+  caps_orden <- preparar_caps_flujo(caps_orden)
+
+  if (length(caps_orden) < 2) {
+    stop("`caps_orden` debe contener al menos 2 capítulos no condicionados por edad.")
+  }
 
   if (!all(caps_orden %in% names(dfs))) {
     faltan <- setdiff(caps_orden, names(dfs))
