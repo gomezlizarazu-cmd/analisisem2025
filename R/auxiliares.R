@@ -22,6 +22,17 @@ n_distinct_safe <- function(data, vars) {
   data %>% dplyr::distinct(dplyr::across(dplyr::all_of(vars))) %>% nrow()
 }
 
+extraer_llaves_unicas <- function(df, keys) {
+  keys <- intersect(keys, names(df))
+
+  if (length(keys) == 0) {
+    return(df[0, 0, drop = FALSE])
+  }
+
+  df %>%
+    dplyr::distinct(dplyr::across(dplyr::all_of(keys)))
+}
+
 #' Expande la presencia del capítulo C a nivel vivienda
 #'
 #' Identifica y expande la presencia del capítulo C a nivel vivienda. Marca como presentes en capítulo C a todos los hogares de una vivienda
