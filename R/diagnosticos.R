@@ -547,9 +547,7 @@ exportar_reporte_encuestas_caidas <- function(
   }
 
   if (nrow(no_pegan) == 0) {
-    resumen_limpio <- diag_flujo$resumen %>%
-      dplyr::mutate(dplyr::across(where(is.factor), as.character))
-    resumen_limpio <- arreglar_utf8_df(resumen_limpio)
+    resumen_limpio <- preparar_df_exportacion(diag_flujo$resumen)
 
     wb <- openxlsx::createWorkbook()
     openxlsx::addWorksheet(wb, "resumen_flujo")
@@ -581,6 +579,19 @@ exportar_reporte_encuestas_caidas <- function(
       capitulo_falla = .data$cap_nuevo
     )
 
+  meta_caidas <- encuestas_caidas %>%
+    dplyr::select(
+      .data$DIRECTORIO,
+      .data$SECUENCIA_P,
+      .data$paso_caida,
+      .data$origen_caida,
+      .data$capitulo_falla,
+      .data$tipo_no_pega
+    )
+
+  ids_caidas <- meta_caidas %>%
+    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P)
+
   pega_personas <- pegar_tablas(
     dfs = dfs[caps_persona_orden],
     base_cap = base_cap_persona,
@@ -605,22 +616,8 @@ exportar_reporte_encuestas_caidas <- function(
   }
 
   personas_caidas <- base_persona %>%
-    dplyr::semi_join(
-      encuestas_caidas %>% dplyr::select(.data$DIRECTORIO, .data$SECUENCIA_P),
-      by = c("DIRECTORIO", "SECUENCIA_P")
-    ) %>%
-    dplyr::left_join(
-      encuestas_caidas %>%
-        dplyr::select(
-          .data$DIRECTORIO,
-          .data$SECUENCIA_P,
-          .data$paso_caida,
-          .data$origen_caida,
-          .data$capitulo_falla,
-          .data$tipo_no_pega
-        ),
-      by = c("DIRECTORIO", "SECUENCIA_P")
-    ) %>%
+    dplyr::semi_join(ids_caidas, by = c("DIRECTORIO", "SECUENCIA_P")) %>%
+    dplyr::left_join(meta_caidas, by = c("DIRECTORIO", "SECUENCIA_P")) %>%
     dplyr::relocate(
       .data$DIRECTORIO,
       .data$SECUENCIA_P,
@@ -639,31 +636,22 @@ exportar_reporte_encuestas_caidas <- function(
     dplyr::count(.data$capitulo_falla, name = "n_encuestas") %>%
     dplyr::arrange(dplyr::desc(.data$n_encuestas))
 
-  # Forzar tipos seguros
-  diag_flujo$resumen <- diag_flujo$resumen %>%
-    dplyr::mutate(dplyr::across(where(is.factor), as.character))
+  objetos_exporte <- lapply(
+    list(
+      resumen_flujo = diag_flujo$resumen,
+      resumen_falla = resumen_falla,
+      resumen_encuestas = resumen_encuestas,
+      encuestas_caidas = encuestas_caidas,
+      personas_caidas = personas_caidas
+    ),
+    preparar_df_exportacion
+  )
 
-  resumen_falla <- resumen_falla %>%
-    dplyr::mutate(dplyr::across(where(is.factor), as.character))
-
-  resumen_encuestas <- resumen_encuestas %>%
-    dplyr::mutate(dplyr::across(where(is.factor), as.character))
-
-  encuestas_caidas <- encuestas_caidas %>%
-    dplyr::mutate(dplyr::across(where(is.factor), as.character))
-
-  personas_caidas <- personas_caidas %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  # Limpiar UTF-8
-  diag_flujo$resumen <- arreglar_utf8_df(diag_flujo$resumen)
-  resumen_falla <- arreglar_utf8_df(resumen_falla)
-  resumen_encuestas <- arreglar_utf8_df(resumen_encuestas)
-  encuestas_caidas <- arreglar_utf8_df(encuestas_caidas)
-  personas_caidas <- arreglar_utf8_df(personas_caidas)
+  diag_flujo$resumen <- objetos_exporte$resumen_flujo
+  resumen_falla <- objetos_exporte$resumen_falla
+  resumen_encuestas <- objetos_exporte$resumen_encuestas
+  encuestas_caidas <- objetos_exporte$encuestas_caidas
+  personas_caidas <- objetos_exporte$personas_caidas
 
   # Exportar a Excel
   wb <- openxlsx::createWorkbook()
@@ -736,12 +724,6 @@ exportar_reporte_encuestas_caidas_campo <- function(
 
   if (is.null(res_campo)) {
     res_campo <- diagnostico_completitud_campo(dfs)
-  }
-
-  limpiar_id <- function(x) {
-    x %>%
-      as.character() %>%
-      stringr::str_trim()
   }
 
   limpiar_seg <- function(x) {
@@ -838,6 +820,16 @@ exportar_reporte_encuestas_caidas_campo <- function(
       )
     )
 
+  encuestas_caidas_campo_id <- encuestas_caidas_campo %>%
+    normalize_keys("DIRECTORIO")
+
+  base_eval_segmentada <- res_campo$base_eval %>%
+    normalize_keys("DIRECTORIO") %>%
+    dplyr::mutate(
+      SEGMENTO = limpiar_seg(.data$SEGMENTO),
+      CLASE = limpiar_seg(.data$CLASE)
+    )
+
   motivos_campo <- encuestas_caidas_campo %>%
     dplyr::count(.data$motivo_principal, .data$motivo_detallado, name = "n") %>%
     dplyr::group_by(.data$motivo_principal) %>%
@@ -863,10 +855,7 @@ exportar_reporte_encuestas_caidas_campo <- function(
   sabana_caidas_campo <- NULL
 
   if (isTRUE(exportar_sabana_campo)) {
-    ids_caidas_campo <- encuestas_caidas_campo %>%
-      dplyr::mutate(
-        DIRECTORIO = limpiar_id(.data$DIRECTORIO)
-      ) %>%
+    ids_caidas_campo <- encuestas_caidas_campo_id %>%
       dplyr::distinct(.data$DIRECTORIO) %>%
       dplyr::mutate(flag_caida_campo = TRUE)
 
@@ -879,14 +868,9 @@ exportar_reporte_encuestas_caidas_campo <- function(
     )
 
     sabana_base <- sabana_base$data %>%
-      dplyr::mutate(
-        DIRECTORIO = limpiar_id(.data$DIRECTORIO)
-      )
+      normalize_keys("DIRECTORIO")
 
-    meta_caidas_campo <- encuestas_caidas_campo %>%
-      dplyr::mutate(
-        DIRECTORIO = limpiar_id(.data$DIRECTORIO)
-      ) %>%
+    meta_caidas_campo <- encuestas_caidas_campo_id %>%
       dplyr::select(
         dplyr::all_of(c(
           "DIRECTORIO",
@@ -954,52 +938,14 @@ exportar_reporte_encuestas_caidas_campo <- function(
   # =========================================================
   # 4) Limpiar tipos y UTF-8
   # =========================================================
-  resumen_general_campo <- res_campo$resumen_general %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  resumen_segmento_campo <- res_campo$resumen_segmento %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  encuestas_caidas_campo <- encuestas_caidas_campo %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  motivos_campo <- motivos_campo %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  diag_hogar_persona <- diag_hogar_persona %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
+  resumen_general_campo <- preparar_df_exportacion(res_campo$resumen_general)
+  resumen_segmento_campo <- preparar_df_exportacion(res_campo$resumen_segmento)
+  encuestas_caidas_campo <- preparar_df_exportacion(encuestas_caidas_campo)
+  motivos_campo <- preparar_df_exportacion(motivos_campo)
+  diag_hogar_persona <- preparar_df_exportacion(diag_hogar_persona)
 
   if (!is.null(sabana_caidas_campo)) {
-    sabana_caidas_campo <- sabana_caidas_campo %>%
-      dplyr::mutate(
-        dplyr::across(where(is.factor), as.character),
-        dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-      )
-  }
-
-  resumen_general_campo <- arreglar_utf8_df(resumen_general_campo)
-  resumen_segmento_campo <- arreglar_utf8_df(resumen_segmento_campo)
-  encuestas_caidas_campo <- arreglar_utf8_df(encuestas_caidas_campo)
-  motivos_campo <- arreglar_utf8_df(motivos_campo)
-  diag_hogar_persona <- arreglar_utf8_df(diag_hogar_persona)
-
-  if (!is.null(sabana_caidas_campo)) {
-    sabana_caidas_campo <- arreglar_utf8_df(sabana_caidas_campo)
+    sabana_caidas_campo <- preparar_df_exportacion(sabana_caidas_campo)
   }
 
   # =========================================================
@@ -1014,16 +960,16 @@ exportar_reporte_encuestas_caidas_campo <- function(
   # Universo base por directorio desde A
   seg_a <- dfs[["A"]] %>%
     dplyr::distinct(DIRECTORIO, SEGMENTO, CLASE) %>%
+    normalize_keys("DIRECTORIO") %>%
     dplyr::mutate(
-      DIRECTORIO = limpiar_id(.data$DIRECTORIO),
       SEGMENTO = limpiar_seg(.data$SEGMENTO),
       CLASE = limpiar_seg(.data$CLASE)
     )
 
   # IDs que caen por campo
-  ids_campo <- encuestas_caidas_campo %>%
+  ids_campo <- encuestas_caidas_campo_id %>%
     dplyr::transmute(
-      DIRECTORIO = limpiar_id(.data$DIRECTORIO),
+      DIRECTORIO,
       cae_campo = 1L
     ) %>%
     dplyr::distinct()
@@ -1031,8 +977,9 @@ exportar_reporte_encuestas_caidas_campo <- function(
   # IDs que caen por flujo
   if (is.list(rep_flujo_obj) && "encuestas_caidas" %in% names(rep_flujo_obj)) {
     ids_flujo <- rep_flujo_obj$encuestas_caidas %>%
+      normalize_keys("DIRECTORIO") %>%
       dplyr::transmute(
-        DIRECTORIO = limpiar_id(.data$DIRECTORIO),
+        DIRECTORIO,
         cae_flujo = 1L
       ) %>%
       dplyr::distinct()
@@ -1078,12 +1025,7 @@ exportar_reporte_encuestas_caidas_campo <- function(
     )
 
   # Efectivas y completas desde base_eval
-  base_eval_segmento <- res_campo$base_eval %>%
-    dplyr::mutate(
-      SEGMENTO = limpiar_seg(.data$SEGMENTO),
-      CLASE = limpiar_seg(.data$CLASE),
-      DIRECTORIO = limpiar_id(.data$DIRECTORIO)
-    ) %>%
+  base_eval_segmento <- base_eval_segmentada %>%
     dplyr::group_by(.data$SEGMENTO, .data$CLASE) %>%
     dplyr::summarise(
       encuestas_efectivas = sum(.data$encuesta_efectiva_campo, na.rm = TRUE),
@@ -1118,13 +1060,7 @@ exportar_reporte_encuestas_caidas_campo <- function(
     ) %>%
     dplyr::arrange(dplyr::desc(.data$caida), .data$SEGMENTO, .data$CLASE)
 
-  cruce_flujo_vs_campo_segmento <- cruce_flujo_vs_campo_segmento %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  cruce_flujo_vs_campo_segmento <- arreglar_utf8_df(cruce_flujo_vs_campo_segmento)
+  cruce_flujo_vs_campo_segmento <- preparar_df_exportacion(cruce_flujo_vs_campo_segmento)
 
   # =========================================================
   # 6) Resumen ejecutivo
@@ -1133,25 +1069,10 @@ exportar_reporte_encuestas_caidas_campo <- function(
 
   n_caidas_campo <- nrow(encuestas_caidas_campo)
 
-  n_caidas_flujo <- if (is.list(rep_flujo_obj) && "encuestas_caidas" %in% names(rep_flujo_obj)) {
-    rep_flujo_obj$encuestas_caidas %>%
-      dplyr::distinct(.data$DIRECTORIO) %>%
-      nrow()
-  } else {
-    0L
-  }
-
-  n_solo_flujo <- cruce_ids %>%
-    dplyr::filter(.data$cae_flujo == 1L & .data$cae_campo == 0L) %>%
-    nrow()
-
-  n_solo_campo <- cruce_ids %>%
-    dplyr::filter(.data$cae_flujo == 0L & .data$cae_campo == 1L) %>%
-    nrow()
-
-  n_ambas <- cruce_ids %>%
-    dplyr::filter(.data$cae_flujo == 1L & .data$cae_campo == 1L) %>%
-    nrow()
+  n_caidas_flujo <- nrow(ids_flujo)
+  n_solo_flujo <- sum(cruce_ids$solo_flujo, na.rm = TRUE)
+  n_solo_campo <- sum(cruce_ids$solo_campo, na.rm = TRUE)
+  n_ambas <- sum(cruce_ids$caidas_ambas, na.rm = TRUE)
 
   resumen_ejecutivo <- tibble::tibble(
     indicador = c(
@@ -1181,13 +1102,7 @@ exportar_reporte_encuestas_caidas_campo <- function(
       )
     )
 
-  resumen_ejecutivo <- resumen_ejecutivo %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  resumen_ejecutivo <- arreglar_utf8_df(resumen_ejecutivo)
+  resumen_ejecutivo <- preparar_df_exportacion(resumen_ejecutivo)
 
   # =========================================================
   # 7) Armar hojas y escribir Excel
@@ -1219,13 +1134,7 @@ exportar_reporte_encuestas_caidas_campo <- function(
     ) %>%
     dplyr::arrange(.data$motivo_principal, .data$SEGMENTO, .data$DIRECTORIO)
 
-  caidas_campo_74 <- caidas_campo_74 %>%
-    dplyr::mutate(
-      dplyr::across(where(is.factor), as.character),
-      dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
-    )
-
-  caidas_campo_74 <- arreglar_utf8_df(caidas_campo_74)
+  caidas_campo_74 <- preparar_df_exportacion(caidas_campo_74)
 
 
   hojas_campo <- list(

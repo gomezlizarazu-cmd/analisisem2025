@@ -166,15 +166,19 @@ diagnostico_completitud_campo <- function(dfs, periodo = 2025) {
     periodo = periodo
   )
 
-  resumen_general <- base_eval %>%
-    dplyr::summarise(
-      encuestas_totales = dplyr::n(),
-      encuestas_efectivas = sum(.data$encuesta_efectiva_campo, na.rm = TRUE),
-      encuestas_completas = sum(.data$encuesta_completa_campo, na.rm = TRUE),
-      encuestas_incompletas = encuestas_efectivas - encuestas_completas,
-      pct_completas = encuestas_completas / encuestas_totales,
-      pct_efectivas = encuestas_efectivas / encuestas_totales
-    )
+  encuestas_totales <- nrow(base_eval)
+  encuestas_efectivas <- sum(base_eval$encuesta_efectiva_campo, na.rm = TRUE)
+  encuestas_completas <- sum(base_eval$encuesta_completa_campo, na.rm = TRUE)
+  encuestas_incompletas_n <- encuestas_efectivas - encuestas_completas
+
+  resumen_general <- tibble::tibble(
+    encuestas_totales = encuestas_totales,
+    encuestas_efectivas = encuestas_efectivas,
+    encuestas_completas = encuestas_completas,
+    encuestas_incompletas = encuestas_incompletas_n,
+    pct_completas = encuestas_completas / encuestas_totales,
+    pct_efectivas = encuestas_efectivas / encuestas_totales
+  )
 
   resumen_segmento <- base_eval %>%
     dplyr::group_by(.data$SEGMENTO, .data$CLASE) %>%

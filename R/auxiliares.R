@@ -22,6 +22,22 @@ n_distinct_safe <- function(data, vars) {
   data %>% dplyr::distinct(dplyr::across(dplyr::all_of(vars))) %>% nrow()
 }
 
+preparar_df_exportacion <- function(df) {
+  if (!is.data.frame(df)) {
+    stop("`df` debe ser un data.frame.")
+  }
+
+  df <- df %>%
+    dplyr::mutate(dplyr::across(where(is.factor), as.character))
+
+  cols_lista <- names(df)[vapply(df, is.list, logical(1))]
+  if (length(cols_lista) > 0) {
+    df[cols_lista] <- lapply(df[cols_lista], function(x) vapply(x, toString, character(1)))
+  }
+
+  arreglar_utf8_df(df)
+}
+
 #' Expande la presencia del capítulo C a nivel vivienda
 #'
 #' Identifica y expande la presencia del capítulo C a nivel vivienda. Marca como presentes en capítulo C a todos los hogares de una vivienda
