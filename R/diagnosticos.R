@@ -67,6 +67,84 @@
 #' David Gómez Lizarazú
 #'
 #' @export
+obtener_universo_referencia_capitulo <- function(dfs, cap_ref, cap_obj, edad_var = "NPCEP4") {
+  cap_ref <- toupper(cap_ref)
+  cap_obj <- toupper(cap_obj)
+  tipo_obj <- tipo_capitulo[[cap_obj]]
+
+  if (is.null(tipo_obj)) {
+    stop("No está definido el tipo del capítulo ", cap_obj, ".")
+  }
+
+  elegir_fuente <- function(candidatos, keys_req) {
+    for (cap in candidatos) {
+      if (cap %in% names(dfs) && all(keys_req %in% names(dfs[[cap]]))) {
+        return(cap)
+      }
+    }
+    NULL
+  }
+
+  if (tipo_obj == "vivienda") {
+    fuente <- elegir_fuente(c(cap_ref, "A", "E", "B"), "DIRECTORIO")
+    if (is.null(fuente)) stop("No se encontró una fuente de referencia con DIRECTORIO para ", cap_obj, ".")
+
+    base_ref <- dfs[[fuente]] %>%
+      normalize_keys("DIRECTORIO") %>%
+      dplyr::distinct(DIRECTORIO)
+  } else if (tipo_obj == "hogar") {
+    keys_hog <- c("DIRECTORIO", "SECUENCIA_P")
+    fuente <- elegir_fuente(c(cap_ref, "E", "B", "C", "D", "L", "M", "MA", "MB"), keys_hog)
+    if (is.null(fuente)) stop("No se encontró una fuente de referencia a nivel hogar para ", cap_obj, ".")
+
+    base_ref <- dfs[[fuente]] %>%
+      normalize_keys(keys_hog) %>%
+      dplyr::distinct(DIRECTORIO, SECUENCIA_P)
+  } else {
+    keys_per <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+    fuente <- elegir_fuente(c(cap_ref, "E", "F", "G", "H", "I", "J", "K"), keys_per)
+    if (is.null(fuente)) stop("No se encontró una fuente de referencia a nivel persona para ", cap_obj, ".")
+
+    edad_var_use <- col_first_existing(dfs[[fuente]], c(edad_var, "NPCEP4", "Edad"))
+
+    base_ref <- dfs[[fuente]] %>%
+      normalize_keys(keys_per)
+
+    if (!is.null(edad_var_use)) {
+      base_ref <- base_ref %>%
+        dplyr::mutate(edad_ref = suppressWarnings(as.numeric(.data[[edad_var_use]])))
+    }
+
+    base_ref <- base_ref %>%
+      dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN, .keep_all = TRUE)
+
+    if (cap_obj %in% names(Edad_objeto)) {
+      if (!"edad_ref" %in% names(base_ref)) {
+        stop("No se encontró variable de edad para evaluar elegibilidad de ", cap_obj, ".")
+      }
+
+      umbral <- Edad_objeto[[cap_obj]]
+      if (umbral < 5) {
+        base_ref <- base_ref %>%
+          dplyr::filter(!is.na(.data$edad_ref) & .data$edad_ref < 5)
+      } else {
+        base_ref <- base_ref %>%
+          dplyr::filter(!is.na(.data$edad_ref) & .data$edad_ref >= umbral)
+      }
+    }
+
+    base_ref <- base_ref %>%
+      dplyr::select(DIRECTORIO, SECUENCIA_P, ORDEN)
+  }
+
+  list(
+    data = base_ref,
+    fuente = fuente,
+    tipo = tipo_obj
+  )
+}
+
+#' @export
 diagnostico_pega_caps <- function(dfs, cap1, cap2) {
 
   cap1 <- toupper(cap1)
@@ -130,8 +208,11 @@ diagnostico_pega_caps <- function(dfs, cap1, cap2) {
 #' @param dfs Lista nombrada de data frames con los capítulos de la encuesta.
 #' @param caps_orden Vector de nombres de capítulos en el orden del flujo.
 #'   Ejemplo: c("A", "B", "C", "D").
-#' @param join Tipo de unión para construir el acumulado. Puede ser
-#'   "left", "full" o "inner". Por defecto "left".
+#' @param join Tipo de unión mantenido por compatibilidad. No altera el
+#'   diagnóstico referencial.
+#' @param cap_ref Capítulo a usar como referencia del análisis. Por defecto `"A"`.
+#' @param edad_var Nombre de la variable de edad usada para capítulos
+#'   condicionados por edad. Por defecto `"NPCEP4"`.
 #'
 #' @details
 #' La función sigue la lógica del paquete:
@@ -142,7 +223,9 @@ diagnostico_pega_caps <- function(dfs, cap1, cap2) {
 #'   capítulo nuevo,
 #'   \item identifica registros que pegan, que están solo en la base acumulada o que están
 #'   solo en el capítulo nuevo,
-#'   \item luego actualiza el acumulado con un pegue secuencial.
+#'   \item construye para cada capítulo un universo de referencia compatible
+#'   con su nivel de observación,
+#'   \item y aplica elegibilidad por edad en capítulos G, H, I, J y K.
 #' }
 #'
 #' @return Una lista con cuatro elementos:
@@ -168,9 +251,11 @@ diagnostico_pega_caps <- function(dfs, cap1, cap2) {
 #' David Gómez Lizarazú
 #'
 #' @export
-diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
-
-  llaves_std <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+diagnostico_flujo_caps <- function(dfs,
+                                   caps_orden,
+                                   join = "left",
+                                   cap_ref = "A",
+                                   edad_var = "NPCEP4") {
 
   if (!is.list(dfs) || length(dfs) == 0) {
     stop("`dfs` debe ser una lista nombrada de data frames.")
@@ -190,61 +275,50 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
 
   names(dfs) <- toupper(names(dfs))
   caps_orden <- toupper(caps_orden)
+  cap_ref <- toupper(cap_ref)
 
   if (!all(caps_orden %in% names(dfs))) {
     faltan <- setdiff(caps_orden, names(dfs))
     stop("Estos capítulos no están en `dfs`: ", paste(faltan, collapse = ", "))
   }
 
-  acumular_join <- function(x, y, by, join = "left") {
-    if (join == "left") {
-      dplyr::left_join(x, y, by = by)
-    } else if (join == "full") {
-      dplyr::full_join(x, y, by = by)
-    } else {
-      dplyr::inner_join(x, y, by = by)
-    }
+  if (!cap_ref %in% names(dfs)) {
+    stop("`cap_ref` no está en `dfs`.")
   }
 
-  dfs <- lapply(dfs, function(df) {
-    normalize_keys(df, intersect(llaves_std, names(df)))
-  })
-
-  cap_base <- caps_orden[1]
-  acumulado <- dfs[[cap_base]]
-  nombre_acumulado <- cap_base
+  caps_eval <- unique(c(cap_ref, setdiff(caps_orden, cap_ref)))
 
   resumen_lista <- list()
   no_pegan_lista <- list()
   acumulados_lista <- list()
-  acumulados_lista[[nombre_acumulado]] <- acumulado
 
-  for (i in 2:length(caps_orden)) {
+  paso_idx <- 0L
 
-    cap_nuevo <- caps_orden[i]
+  for (cap_nuevo in setdiff(caps_eval, cap_ref)) {
+    paso_idx <- paso_idx + 1L
     df_nuevo <- dfs[[cap_nuevo]]
+    ref_info <- obtener_universo_referencia_capitulo(
+      dfs = dfs,
+      cap_ref = cap_ref,
+      cap_obj = cap_nuevo,
+      edad_var = edad_var
+    )
 
-    keys_acum <- intersect(llaves_std, names(acumulado))
-    keys_nuevo <- get_join_keys(cap_nuevo)
-    keys_use <- intersect(keys_acum, keys_nuevo)
-
-    if (length(keys_use) == 0) {
-      stop(
-        "No hay llaves comunes entre la base acumulada (", nombre_acumulado,
-        ") y el capítulo ", cap_nuevo, "."
-      )
-    }
-
-    df1_keys <- extraer_llaves_unicas(acumulado, keys_use) %>%
+    df1_keys <- ref_info$data %>%
       dplyr::mutate(en_base = 1L)
 
-    if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
+    if (cap_nuevo == "C") {
       df2_keys <- expandir_presencia_capitulo_c(df1_keys, df_nuevo) %>%
         dplyr::mutate(en_nuevo = 1L)
     } else {
-      df2_keys <- extraer_llaves_unicas(df_nuevo, keys_use) %>%
+      df2_keys <- dfs[[cap_nuevo]] %>%
+        normalize_keys(get_join_keys(cap_nuevo)) %>%
+        dplyr::distinct(dplyr::across(dplyr::all_of(get_join_keys(cap_nuevo)))) %>%
         dplyr::mutate(en_nuevo = 1L)
     }
+
+    keys_use <- intersect(names(df1_keys), names(df2_keys))
+    keys_use <- setdiff(keys_use, c("en_base", "en_nuevo"))
 
     comp <- dplyr::full_join(df1_keys, df2_keys, by = keys_use)
 
@@ -256,8 +330,8 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
         total = dplyr::n()
       ) %>%
       dplyr::mutate(
-        paso = i - 1,
-        base_acumulada = nombre_acumulado,
+        paso = paso_idx,
+        base_acumulada = ref_info$fuente,
         cap_nuevo = cap_nuevo,
         join_keys = paste(keys_use, collapse = ", "),
         n_base = nrow(df1_keys),
@@ -268,44 +342,31 @@ diagnostico_flujo_caps <- function(dfs, caps_orden, join = "left") {
     no_pegan_paso <- comp %>%
       dplyr::filter(is.na(en_base) | is.na(en_nuevo)) %>%
       dplyr::mutate(
-        paso = i - 1,
-        base_acumulada = nombre_acumulado,
+        paso = paso_idx,
+        base_acumulada = ref_info$fuente,
         cap_nuevo = cap_nuevo,
+        origen_no_pega = dplyr::case_when(
+          !is.na(en_base) & is.na(en_nuevo) ~ "base",
+          is.na(en_base) & !is.na(en_nuevo) ~ "nuevo",
+          TRUE ~ NA_character_
+        ),
         tipo_no_pega = dplyr::case_when(
-          !is.na(en_base) & is.na(en_nuevo) ~ paste0(nombre_acumulado, "_sin_", cap_nuevo),
-          is.na(en_base) & !is.na(en_nuevo) ~ paste0(cap_nuevo, "_sin_", nombre_acumulado),
+          !is.na(en_base) & is.na(en_nuevo) ~ paste0(ref_info$fuente, "_sin_", cap_nuevo),
+          is.na(en_base) & !is.na(en_nuevo) ~ paste0(cap_nuevo, "_sin_", ref_info$fuente),
           TRUE ~ NA_character_
         )
       )
 
-    resumen_lista[[i - 1]] <- resumen_paso
-    no_pegan_lista[[i - 1]] <- no_pegan_paso
-
-    if (cap_nuevo == "C" && all(c("DIRECTORIO", "SECUENCIA_P") %in% keys_use)) {
-      acumulado <- acumular_join(
-        x = acumulado,
-        y = df2_keys %>% dplyr::select(dplyr::all_of(keys_use)),
-        by = keys_use,
-        join = join
-      )
-    } else {
-      acumulado <- acumular_join(
-        x = acumulado,
-        y = df_nuevo,
-        by = keys_use,
-        join = join
-      )
-    }
-
-    nombre_acumulado <- paste0(nombre_acumulado, "_", cap_nuevo)
-    acumulados_lista[[nombre_acumulado]] <- acumulado
+    resumen_lista[[paso_idx]] <- resumen_paso
+    no_pegan_lista[[paso_idx]] <- no_pegan_paso
+    acumulados_lista[[cap_nuevo]] <- ref_info$data
   }
 
   list(
     resumen = dplyr::bind_rows(resumen_lista),
     no_pegan = dplyr::bind_rows(no_pegan_lista),
     acumulados = acumulados_lista,
-    acumulado_final = acumulado
+    acumulado_final = if (length(acumulados_lista) > 0) acumulados_lista[[length(acumulados_lista)]] else dfs[[cap_ref]]
   )
 }
 
@@ -469,6 +530,7 @@ exportar_reporte_encuestas_caidas <- function(
     caps_orden,
     base_cap_persona = "F",
     caps_persona_orden = NULL,
+    cap_ref_flujo = "A",
     archivo = "encuestas_caidas_flujo.xlsx",
     join_flujo = c("left", "inner"),
     quedarse_con = c("primero", "ultimo"),
@@ -520,10 +582,13 @@ exportar_reporte_encuestas_caidas <- function(
   diag_flujo <- diagnostico_flujo_caps(
     dfs = dfs,
     caps_orden = caps_orden,
-    join = join_flujo
+    join = join_flujo,
+    cap_ref = cap_ref_flujo,
+    edad_var = edad_var
   )
 
-  no_pegan <- diag_flujo$no_pegan
+  no_pegan <- diag_flujo$no_pegan %>%
+    dplyr::filter(.data$origen_no_pega == "base")
 
   req_cols <- c("DIRECTORIO", "SECUENCIA_P", "paso", "base_acumulada", "cap_nuevo", "tipo_no_pega")
   if (nrow(no_pegan) > 0) {
@@ -710,6 +775,7 @@ exportar_reporte_encuestas_caidas_campo <- function(
     caps_orden,
     base_cap_persona = "E",
     caps_persona_orden = caps_orden,
+    cap_ref_flujo = "A",
     archivo = "encuestas_caidas_flujo_y_campo.xlsx",
     join_flujo = "left",
     quedarse_con = "primero",
@@ -748,6 +814,7 @@ exportar_reporte_encuestas_caidas_campo <- function(
     caps_orden = caps_orden,
     base_cap_persona = base_cap_persona,
     caps_persona_orden = caps_persona_orden,
+    cap_ref_flujo = cap_ref_flujo,
     archivo = archivo,
     join_flujo = join_flujo,
     quedarse_con = quedarse_con,
