@@ -450,7 +450,7 @@ pipeline_encuestas_completas <- function(dfs, caps_orden) {
 exportar_reporte_encuestas_caidas <- function(
     dfs,
     caps_orden,
-    base_cap_persona = "F",
+    base_cap_persona = "E",
     caps_persona_orden = NULL,
     archivo = "encuestas_caidas_flujo.xlsx",
     join_flujo = c("left", "inner"),
