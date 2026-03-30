@@ -29,8 +29,10 @@
 #' @param caps_vivienda Capitulos a evaluar a nivel vivienda. Default: `"A"`.
 #' @param caps_hogar Capitulos a evaluar a nivel hogar.
 #' @param caps_persona Capitulos a evaluar a nivel persona.
-#' @param base_hogar_cap Capitulo base para construir el universo de hogares.
-#' @param base_persona_cap Capitulo base para construir el universo de personas.
+#' @param base_hogar_cap Capitulo de referencia para priorizar el universo de
+#'   hogares cuando tambien exista en la union de capitulos con llave de hogar.
+#' @param base_persona_cap Capitulo de referencia para priorizar el universo de
+#'   personas y tomar la variable de edad.
 #' @param edad_var Variable de edad en el capitulo base de personas.
 #' @param exportar_excel Si es `TRUE`, exporta resultados a Excel.
 #' @param archivo Ruta del archivo Excel.
@@ -49,6 +51,8 @@
 #'   nivel hogar.}
 #'   \item{resumen_persona}{Resumen de presencia, requerimiento y faltantes a
 #'   nivel persona.}
+#'   \item{resumen_estructura}{Resumen de quiebres estructurales entre niveles:
+#'   viviendas sin hogares y hogares sin personas.}
 #'   \item{viviendas_eval}{Base micro a nivel vivienda con indicadores de
 #'   presencia por capitulo.}
 #'   \item{hogares_eval}{Base micro a nivel hogar con indicadores `pres_*`,
@@ -183,6 +187,12 @@ diagnostico_cruce_capitulos <- function(
   personas_caidas <- personas_eval %>%
     dplyr::filter(!.data$persona_completa)
 
+  resumen_estructura <- .resumen_estructura_niveles(
+    viviendas_universo = viviendas_universo,
+    hogares_universo = hogares_universo,
+    personas_universo = personas_universo
+  )
+
   detalle_capitulos <- NULL
   if (isTRUE(exportar_sabana_completa)) {
     detalle_capitulos <- .build_detalle_capitulos(
@@ -199,6 +209,7 @@ diagnostico_cruce_capitulos <- function(
     resumen_vivienda = resumen_vivienda,
     resumen_hogar = resumen_hogar,
     resumen_persona = resumen_persona,
+    resumen_estructura = resumen_estructura,
     viviendas_eval = viviendas_eval,
     hogares_eval = hogares_eval,
     personas_eval = personas_eval,
@@ -262,50 +273,116 @@ diagnostico_cruce_capitulos <- function(
 }
 
 .build_universo_vivienda <- function(dfs, caps_all) {
-  vivs <- dplyr::bind_rows(lapply(caps_all, function(cap) {
-    df_cap <- dfs[[cap]]
-    if (!"DIRECTORIO" %in% names(df_cap)) {
-      return(NULL)
-    }
+  caps_con_vivienda <- caps_all[vapply(
+    caps_all,
+    function(cap) {
+      tipo_ok <- !is.null(tipo_capitulo[[cap]]) && tipo_capitulo[[cap]] %in% c("vivienda", "hogar", "persona")
+      cols_ok <- "DIRECTORIO" %in% names(dfs[[cap]])
+      tipo_ok && cols_ok
+    },
+    logical(1)
+  )]
 
-    normalize_keys(df_cap, "DIRECTORIO") %>%
-      dplyr::distinct(.data$DIRECTORIO)
+  if (length(caps_con_vivienda) == 0) {
+    stop("No fue posible construir el universo de viviendas.")
+  }
+
+  vivs_union <- dplyr::bind_rows(lapply(caps_con_vivienda, function(cap) {
+    normalize_keys(dfs[[cap]], "DIRECTORIO") %>%
+      dplyr::distinct(.data$DIRECTORIO) %>%
+      dplyr::mutate(cap_src = cap)
   }))
 
-  vivs %>%
+  vivs_union %>%
     dplyr::distinct(.data$DIRECTORIO) %>%
     dplyr::arrange(.data$DIRECTORIO)
 }
 
 .build_universo_hogar <- function(dfs, base_hogar_cap, base_persona_cap) {
-  cap_use <- if (base_hogar_cap %in% names(dfs)) base_hogar_cap else base_persona_cap
+  caps_con_hogar <- names(dfs)[vapply(
+    names(dfs),
+    function(cap) {
+      tipo_ok <- !is.null(tipo_capitulo[[cap]]) && tipo_capitulo[[cap]] %in% c("hogar", "persona")
+      cols_ok <- all(c("DIRECTORIO", "SECUENCIA_P") %in% names(dfs[[cap]]))
+      tipo_ok && cols_ok
+    },
+    logical(1)
+  )]
 
-  if (!cap_use %in% names(dfs)) {
+  if (length(caps_con_hogar) == 0) {
     stop("No fue posible construir el universo de hogares.")
   }
 
-  df_cap <- dfs[[cap_use]]
+  hogares_union <- dplyr::bind_rows(lapply(caps_con_hogar, function(cap) {
+    normalize_keys(dfs[[cap]], c("DIRECTORIO", "SECUENCIA_P")) %>%
+      dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P) %>%
+      dplyr::mutate(cap_src = cap)
+  }))
 
-  if (!all(c("DIRECTORIO", "SECUENCIA_P") %in% names(df_cap))) {
-    stop("El capitulo base de hogares no contiene `DIRECTORIO` y `SECUENCIA_P`.")
-  }
-
-  normalize_keys(df_cap, c("DIRECTORIO", "SECUENCIA_P")) %>%
+  hogares_universo <- hogares_union %>%
     dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P) %>%
     dplyr::arrange(.data$DIRECTORIO, .data$SECUENCIA_P)
+
+  # Se conserva el capitulo base solo como referencia prioritaria cuando exista.
+  if (base_hogar_cap %in% caps_con_hogar || base_persona_cap %in% caps_con_hogar) {
+    hogares_universo <- hogares_universo %>%
+      dplyr::left_join(
+        hogares_union %>%
+          dplyr::mutate(
+            es_base = as.integer(.data$cap_src %in% c(base_hogar_cap, base_persona_cap))
+          ) %>%
+          dplyr::group_by(.data$DIRECTORIO, .data$SECUENCIA_P) %>%
+          dplyr::summarise(en_base = max(.data$es_base, na.rm = TRUE), .groups = "drop"),
+        by = c("DIRECTORIO", "SECUENCIA_P")
+      )
+  }
+
+  hogares_universo
 }
 
 .build_universo_persona <- function(dfs, base_persona_cap, edad_var) {
-  df_cap <- dfs[[base_persona_cap]]
+  caps_con_persona <- names(dfs)[vapply(
+    dfs,
+    function(x) all(c("DIRECTORIO", "SECUENCIA_P", "ORDEN") %in% names(x)),
+    logical(1)
+  )]
 
-  if (!all(c("DIRECTORIO", "SECUENCIA_P", "ORDEN") %in% names(df_cap))) {
-    stop("El capitulo base de personas no contiene las llaves completas.")
+  if (length(caps_con_persona) == 0) {
+    stop("No fue posible construir el universo de personas.")
   }
 
-  normalize_keys(df_cap, c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
-    dplyr::mutate(edad = suppressWarnings(as.numeric(.data[[edad_var]]))) %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN, .data$edad) %>%
+  personas_union <- dplyr::bind_rows(lapply(caps_con_persona, function(cap) {
+    normalize_keys(dfs[[cap]], c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
+      dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+      dplyr::mutate(cap_src = cap)
+  }))
+
+  personas_universo <- personas_union %>%
+    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
     dplyr::arrange(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN)
+
+  if (base_persona_cap %in% caps_con_persona && edad_var %in% names(dfs[[base_persona_cap]])) {
+    edades_base <- normalize_keys(dfs[[base_persona_cap]], c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
+      dplyr::mutate(edad = suppressWarnings(as.numeric(.data[[edad_var]]))) %>%
+      dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN, .data$edad)
+
+    personas_universo <- personas_universo %>%
+      dplyr::left_join(
+        edades_base,
+        by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+      ) %>%
+      dplyr::left_join(
+        personas_union %>%
+          dplyr::mutate(es_base = as.integer(.data$cap_src == base_persona_cap)) %>%
+          dplyr::group_by(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+          dplyr::summarise(en_base = max(.data$es_base, na.rm = TRUE), .groups = "drop"),
+        by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+      )
+  } else {
+    personas_universo$edad <- NA_real_
+  }
+
+  personas_universo
 }
 
 .build_eval_vivienda <- function(viviendas_universo, dfs, caps_all) {
@@ -609,6 +686,49 @@ diagnostico_cruce_capitulos <- function(
   out
 }
 
+.resumen_estructura_niveles <- function(viviendas_universo,
+                                        hogares_universo,
+                                        personas_universo) {
+  viviendas_con_hogar <- hogares_universo %>%
+    dplyr::distinct(.data$DIRECTORIO) %>%
+    dplyr::mutate(con_hogar = 1L)
+
+  hogares_con_persona <- personas_universo %>%
+    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P) %>%
+    dplyr::mutate(con_persona = 1L)
+
+  viv_eval <- viviendas_universo %>%
+    dplyr::left_join(viviendas_con_hogar, by = "DIRECTORIO") %>%
+    dplyr::mutate(con_hogar = dplyr::coalesce(.data$con_hogar, 0L))
+
+  hog_eval <- hogares_universo %>%
+    dplyr::left_join(hogares_con_persona, by = c("DIRECTORIO", "SECUENCIA_P")) %>%
+    dplyr::mutate(con_persona = dplyr::coalesce(.data$con_persona, 0L))
+
+  tibble::tibble(
+    indicador = c(
+      "viviendas_totales_universo",
+      "viviendas_sin_hogares",
+      "pct_viviendas_sin_hogares",
+      "hogares_totales_universo",
+      "hogares_sin_personas",
+      "pct_hogares_sin_personas"
+    ),
+    valor = c(
+      nrow(viviendas_universo),
+      sum(viv_eval$con_hogar == 0L, na.rm = TRUE),
+      ifelse(nrow(viviendas_universo) > 0,
+             round(100 * sum(viv_eval$con_hogar == 0L, na.rm = TRUE) / nrow(viviendas_universo), 2),
+             NA_real_),
+      nrow(hogares_universo),
+      sum(hog_eval$con_persona == 0L, na.rm = TRUE),
+      ifelse(nrow(hogares_universo) > 0,
+             round(100 * sum(hog_eval$con_persona == 0L, na.rm = TRUE) / nrow(hogares_universo), 2),
+             NA_real_)
+    )
+  )
+}
+
 .build_detalle_capitulos <- function(dfs,
                                      viviendas_caidas,
                                      hogares_caidos,
@@ -696,6 +816,7 @@ diagnostico_cruce_capitulos <- function(
     resumen_vivienda = salida$resumen_vivienda,
     resumen_hogar = salida$resumen_hogar,
     resumen_persona = salida$resumen_persona,
+    resumen_estructura = salida$resumen_estructura,
     viviendas_caidas = salida$viviendas_caidas,
     hogares_caidos = salida$hogares_caidos,
     personas_caidas = salida$personas_caidas

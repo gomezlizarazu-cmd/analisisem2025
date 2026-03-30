@@ -27,9 +27,11 @@ diagnostico_cruce_capitulos(
 
 \item{caps_persona}{Capitulos a evaluar a nivel persona.}
 
-\item{base_hogar_cap}{Capitulo base para construir el universo de hogares.}
+\item{base_hogar_cap}{Capitulo de referencia para priorizar el universo de
+hogares cuando tambien exista en la union de capitulos con llave de hogar.}
 
-\item{base_persona_cap}{Capitulo base para construir el universo de personas.}
+\item{base_persona_cap}{Capitulo de referencia para priorizar el universo de
+personas y tomar la variable de edad.}
 
 \item{edad_var}{Variable de edad en el capitulo base de personas.}
 
@@ -53,6 +55,8 @@ hogares, personas y promedios estructurales.}
 nivel hogar.}
 \item{resumen_persona}{Resumen de presencia, requerimiento y faltantes a
 nivel persona.}
+\item{resumen_estructura}{Resumen de quiebres estructurales entre niveles:
+viviendas sin hogares y hogares sin personas.}
 \item{viviendas_eval}{Base micro a nivel vivienda con indicadores de
 presencia por capitulo.}
 \item{hogares_eval}{Base micro a nivel hogar con indicadores \verb{pres_*},
