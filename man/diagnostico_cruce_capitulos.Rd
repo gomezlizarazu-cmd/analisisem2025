@@ -55,10 +55,10 @@ nivel hogar.}
 nivel persona.}
 \item{viviendas_eval}{Base micro a nivel vivienda con indicadores de
 presencia por capitulo.}
-\item{hogares_eval}{Base micro a nivel hogar con indicadores \code{pres_*},
-\code{req_*}, \code{ok_*} y capitulos faltantes.}
-\item{personas_eval}{Base micro a nivel persona con indicadores \code{pres_*},
-\code{req_*}, \code{ok_*} y capitulos faltantes.}
+\item{hogares_eval}{Base micro a nivel hogar con indicadores \verb{pres_*},
+\verb{req_*}, \verb{ok_*} y capitulos faltantes.}
+\item{personas_eval}{Base micro a nivel persona con indicadores \verb{pres_*},
+\verb{req_*}, \verb{ok_*} y capitulos faltantes.}
 \item{viviendas_caidas}{Viviendas que no aparecen en todos los capitulos
 evaluados.}
 \item{hogares_caidos}{Hogares con al menos un capitulo requerido faltante.}
@@ -89,7 +89,10 @@ los joins se normalizan con \code{normalize_keys()}.
 
 Reglas clave del diagnostico:
 \itemize{
-\item el capitulo \code{C} se valida a nivel vivienda como "al menos un hogar"
+\item vivienda: unidad \code{DIRECTORIO}
+\item hogar: unidad \code{DIRECTORIO + SECUENCIA_P}
+\item persona: unidad \code{DIRECTORIO + SECUENCIA_P + ORDEN}
+\item el capitulo \code{B} se valida a nivel vivienda como "al menos un hogar"
 \item el capitulo \code{F} usa todo el universo de personas del capitulo base
 \item \code{G}, \code{H}, \code{I}, \code{J} y \code{K} se exigen segun la edad observada en \code{E}
 }

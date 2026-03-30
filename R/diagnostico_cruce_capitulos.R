@@ -21,7 +21,7 @@
 #' - vivienda: unidad `DIRECTORIO`
 #' - hogar: unidad `DIRECTORIO + SECUENCIA_P`
 #' - persona: unidad `DIRECTORIO + SECUENCIA_P + ORDEN`
-#' - el capitulo `C` se valida a nivel vivienda como "al menos un hogar"
+#' - el capitulo `B` se valida a nivel vivienda como "al menos un hogar"
 #' - el capitulo `F` usa todo el universo de personas del capitulo base
 #' - `G`, `H`, `I`, `J` y `K` se exigen segun la edad observada en `E`
 #'
@@ -392,7 +392,7 @@ diagnostico_cruce_capitulos <- function(
   for (cap in caps_all) {
     req_var <- paste0("req_", cap)
 
-    if (cap == "C") {
+    if (cap == "B") {
       out[[req_var]] <- 0L
     } else if (cap %in% c("F", "G", "H", "I", "J", "K")) {
       if (!req_var %in% names(out)) {
