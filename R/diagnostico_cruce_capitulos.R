@@ -53,6 +53,10 @@
 #'   nivel persona.}
 #'   \item{resumen_estructura}{Resumen de quiebres estructurales entre niveles:
 #'   viviendas sin hogares y hogares sin personas.}
+#'   \item{resumen_caidas_regla1}{Resumen de llaves caidas con propagacion total
+#'   entre vivienda, hogar y persona.}
+#'   \item{resumen_caidas_regla2}{Resumen de llaves caidas con propagacion
+#'   parcial, donde la caida de hogar no tumba toda la vivienda.}
 #'   \item{viviendas_eval}{Base micro a nivel vivienda con indicadores de
 #'   presencia por capitulo.}
 #'   \item{hogares_eval}{Base micro a nivel hogar con indicadores `pres_*`,
@@ -193,6 +197,24 @@ diagnostico_cruce_capitulos <- function(
     personas_universo = personas_universo
   )
 
+  resumen_caidas_regla1 <- .resumen_caidas_propaga_regla1(
+    viviendas_universo = viviendas_universo,
+    hogares_universo = hogares_universo,
+    personas_universo = personas_universo,
+    viviendas_caidas = viviendas_caidas,
+    hogares_caidos = hogares_caidos,
+    personas_caidas = personas_caidas
+  )
+
+  resumen_caidas_regla2 <- .resumen_caidas_propaga_regla2(
+    viviendas_universo = viviendas_universo,
+    hogares_universo = hogares_universo,
+    personas_universo = personas_universo,
+    viviendas_caidas = viviendas_caidas,
+    hogares_caidos = hogares_caidos,
+    personas_caidas = personas_caidas
+  )
+
   detalle_capitulos <- NULL
   if (isTRUE(exportar_sabana_completa)) {
     detalle_capitulos <- .build_detalle_capitulos(
@@ -210,6 +232,8 @@ diagnostico_cruce_capitulos <- function(
     resumen_hogar = resumen_hogar,
     resumen_persona = resumen_persona,
     resumen_estructura = resumen_estructura,
+    resumen_caidas_regla1 = resumen_caidas_regla1,
+    resumen_caidas_regla2 = resumen_caidas_regla2,
     viviendas_eval = viviendas_eval,
     hogares_eval = hogares_eval,
     personas_eval = personas_eval,
@@ -729,6 +753,233 @@ diagnostico_cruce_capitulos <- function(
   )
 }
 
+.source_caidas_vivienda <- function(viviendas_caidas) {
+  if (nrow(viviendas_caidas) == 0) {
+    return(tibble::tibble(
+      DIRECTORIO = character(),
+      nivel_fuente = character(),
+      capitulos_caida = character()
+    ))
+  }
+
+  viviendas_caidas %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      nivel_fuente = "vivienda",
+      capitulos_caida = dplyr::coalesce(.data$capitulos_faltantes, NA_character_)
+    )
+}
+
+.source_caidas_hogar <- function(hogares_caidos) {
+  if (nrow(hogares_caidos) == 0) {
+    return(tibble::tibble(
+      DIRECTORIO = character(),
+      SECUENCIA_P = character(),
+      nivel_fuente = character(),
+      capitulos_caida = character()
+    ))
+  }
+
+  hogares_caidos %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      SECUENCIA_P = as.character(.data$SECUENCIA_P),
+      nivel_fuente = "hogar",
+      capitulos_caida = dplyr::coalesce(.data$capitulos_faltantes, NA_character_)
+    )
+}
+
+.source_caidas_persona <- function(personas_caidas) {
+  if (nrow(personas_caidas) == 0) {
+    return(tibble::tibble(
+      DIRECTORIO = character(),
+      SECUENCIA_P = character(),
+      ORDEN = character(),
+      nivel_fuente = character(),
+      capitulos_caida = character()
+    ))
+  }
+
+  personas_caidas %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      SECUENCIA_P = as.character(.data$SECUENCIA_P),
+      ORDEN = as.character(.data$ORDEN),
+      nivel_fuente = "persona",
+      capitulos_caida = dplyr::coalesce(.data$capitulos_faltantes, NA_character_)
+    )
+}
+
+.collapse_unique_tokens <- function(x) {
+  x <- x[!is.na(x) & nzchar(trimws(x))]
+  if (length(x) == 0) {
+    return(NA_character_)
+  }
+
+  tokens <- unlist(strsplit(x, "\\s*,\\s*"))
+  tokens <- unique(tokens[nzchar(tokens)])
+
+  if (length(tokens) == 0) {
+    return(NA_character_)
+  }
+
+  paste(tokens, collapse = ", ")
+}
+
+.agregar_resumen_caidas <- function(df, nivel, keys) {
+  if (nrow(df) == 0) {
+    out <- tibble::tibble(nivel = character())
+    for (k in c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) {
+      out[[k]] <- character()
+    }
+    out$capitulos_caida <- character()
+    out$fuentes_caida <- character()
+    out$n_eventos <- integer()
+    return(out)
+  }
+
+  df %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(keys))) %>%
+    dplyr::summarise(
+      capitulos_caida = .collapse_unique_tokens(.data$capitulos_caida),
+      fuentes_caida = .collapse_unique_tokens(.data$nivel_fuente),
+      n_eventos = dplyr::n(),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(
+      nivel = nivel,
+      SECUENCIA_P = if ("SECUENCIA_P" %in% names(.)) .data$SECUENCIA_P else NA_character_,
+      ORDEN = if ("ORDEN" %in% names(.)) .data$ORDEN else NA_character_
+    ) %>%
+    dplyr::select(.data$nivel, .data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN,
+                  .data$capitulos_caida, .data$fuentes_caida, .data$n_eventos)
+}
+
+.resumen_caidas_propaga_regla1 <- function(viviendas_universo,
+                                           hogares_universo,
+                                           personas_universo,
+                                           viviendas_caidas,
+                                           hogares_caidos,
+                                           personas_caidas) {
+  src_v <- .source_caidas_vivienda(viviendas_caidas)
+  src_h <- .source_caidas_hogar(hogares_caidos)
+  src_p <- .source_caidas_persona(personas_caidas)
+
+  eventos_dir <- dplyr::bind_rows(
+    src_v,
+    src_h %>% dplyr::select(.data$DIRECTORIO, .data$nivel_fuente, .data$capitulos_caida),
+    src_p %>% dplyr::select(.data$DIRECTORIO, .data$nivel_fuente, .data$capitulos_caida)
+  ) %>%
+    dplyr::distinct()
+
+  viv <- .agregar_resumen_caidas(
+    df = eventos_dir,
+    nivel = "vivienda",
+    keys = c("DIRECTORIO")
+  )
+
+  hog <- hogares_universo %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      SECUENCIA_P = as.character(.data$SECUENCIA_P)
+    ) %>%
+    dplyr::inner_join(eventos_dir, by = "DIRECTORIO") %>%
+    .agregar_resumen_caidas(
+      nivel = "hogar",
+      keys = c("DIRECTORIO", "SECUENCIA_P")
+    )
+
+  per <- personas_universo %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      SECUENCIA_P = as.character(.data$SECUENCIA_P),
+      ORDEN = as.character(.data$ORDEN)
+    ) %>%
+    dplyr::inner_join(eventos_dir, by = "DIRECTORIO") %>%
+    .agregar_resumen_caidas(
+      nivel = "persona",
+      keys = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+    )
+
+  dplyr::bind_rows(viv, hog, per)
+}
+
+.resumen_caidas_propaga_regla2 <- function(viviendas_universo,
+                                           hogares_universo,
+                                           personas_universo,
+                                           viviendas_caidas,
+                                           hogares_caidos,
+                                           personas_caidas) {
+  src_v <- .source_caidas_vivienda(viviendas_caidas)
+  src_h <- .source_caidas_hogar(hogares_caidos)
+  src_p <- .source_caidas_persona(personas_caidas)
+
+  eventos_dir_viv <- dplyr::bind_rows(
+    src_v,
+    src_p %>% dplyr::select(.data$DIRECTORIO, .data$nivel_fuente, .data$capitulos_caida)
+  ) %>%
+    dplyr::distinct()
+
+  viv <- .agregar_resumen_caidas(
+    df = eventos_dir_viv,
+    nivel = "vivienda",
+    keys = c("DIRECTORIO")
+  )
+
+  hog_desde_viv <- hogares_universo %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      SECUENCIA_P = as.character(.data$SECUENCIA_P)
+    ) %>%
+    dplyr::inner_join(eventos_dir_viv, by = "DIRECTORIO")
+
+  hog_directos <- dplyr::bind_rows(
+    src_h,
+    src_p %>% dplyr::select(.data$DIRECTORIO, .data$SECUENCIA_P, .data$nivel_fuente, .data$capitulos_caida)
+  ) %>%
+    dplyr::distinct()
+
+  hog <- dplyr::bind_rows(
+    hog_desde_viv,
+    hog_directos
+  ) %>%
+    .agregar_resumen_caidas(
+      nivel = "hogar",
+      keys = c("DIRECTORIO", "SECUENCIA_P")
+    )
+
+  per_desde_viv <- personas_universo %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      SECUENCIA_P = as.character(.data$SECUENCIA_P),
+      ORDEN = as.character(.data$ORDEN)
+    ) %>%
+    dplyr::inner_join(eventos_dir_viv, by = "DIRECTORIO")
+
+  per_desde_hog <- personas_universo %>%
+    dplyr::transmute(
+      DIRECTORIO = as.character(.data$DIRECTORIO),
+      SECUENCIA_P = as.character(.data$SECUENCIA_P),
+      ORDEN = as.character(.data$ORDEN)
+    ) %>%
+    dplyr::inner_join(
+      src_h %>% dplyr::select(.data$DIRECTORIO, .data$SECUENCIA_P, .data$nivel_fuente, .data$capitulos_caida),
+      by = c("DIRECTORIO", "SECUENCIA_P")
+    )
+
+  per <- dplyr::bind_rows(
+    per_desde_viv,
+    per_desde_hog,
+    src_p
+  ) %>%
+    .agregar_resumen_caidas(
+      nivel = "persona",
+      keys = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+    )
+
+  dplyr::bind_rows(viv, hog, per)
+}
+
 .build_detalle_capitulos <- function(dfs,
                                      viviendas_caidas,
                                      hogares_caidos,
@@ -817,6 +1068,8 @@ diagnostico_cruce_capitulos <- function(
     resumen_hogar = salida$resumen_hogar,
     resumen_persona = salida$resumen_persona,
     resumen_estructura = salida$resumen_estructura,
+    resumen_caidas_regla1 = salida$resumen_caidas_regla1,
+    resumen_caidas_regla2 = salida$resumen_caidas_regla2,
     viviendas_caidas = salida$viviendas_caidas,
     hogares_caidos = salida$hogares_caidos,
     personas_caidas = salida$personas_caidas

@@ -57,6 +57,10 @@ nivel hogar.}
 nivel persona.}
 \item{resumen_estructura}{Resumen de quiebres estructurales entre niveles:
 viviendas sin hogares y hogares sin personas.}
+\item{resumen_caidas_regla1}{Resumen de llaves caidas con propagacion total
+entre vivienda, hogar y persona.}
+\item{resumen_caidas_regla2}{Resumen de llaves caidas con propagacion
+parcial, donde la caida de hogar no tumba toda la vivienda.}
 \item{viviendas_eval}{Base micro a nivel vivienda con indicadores de
 presencia por capitulo.}
 \item{hogares_eval}{Base micro a nivel hogar con indicadores \verb{pres_*},
