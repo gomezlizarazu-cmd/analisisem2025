@@ -29,6 +29,11 @@ clasificar_completitud_campo <- function(
   C <- dfs[[cap_hog]]
   E <- dfs[[cap_per]]
 
+  # Normalizar llaves desde el inicio
+  A <- normalize_keys(A, "DIRECTORIO")
+  C <- normalize_keys(C, c("DIRECTORIO", "SECUENCIA_P"))
+  E <- normalize_keys(E, c("DIRECTORIO", "SECUENCIA_P", "ORDEN"))
+
   # ---------
   # Vivienda
   # ---------
@@ -87,7 +92,8 @@ clasificar_completitud_campo <- function(
       hogares_incompletos = sum(.data$hogar_incompleto, na.rm = TRUE),
       todos_hogares_completos = all(.data$hogar_completo, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) %>%
+    normalize_keys("DIRECTORIO")
 
   # -------
   # Persona
@@ -118,9 +124,11 @@ clasificar_completitud_campo <- function(
       menores_10 = sum(.data$menor_10, na.rm = TRUE),
       todas_personas_completas = all(.data$persona_completa, na.rm = TRUE),
       .groups = "drop"
-    )
+    ) %>%
+    normalize_keys("DIRECTORIO")
 
   salida <- viv_micro %>%
+    normalize_keys("DIRECTORIO") %>%
     dplyr::left_join(hog_micro, by = "DIRECTORIO") %>%
     dplyr::left_join(per_micro, by = "DIRECTORIO") %>%
     dplyr::mutate(
@@ -158,15 +166,19 @@ diagnostico_completitud_campo <- function(dfs, periodo = 2025) {
     periodo = periodo
   )
 
-  resumen_general <- base_eval %>%
-    dplyr::summarise(
-      encuestas_totales = dplyr::n(),
-      encuestas_efectivas = sum(.data$encuesta_efectiva_campo, na.rm = TRUE),
-      encuestas_completas = sum(.data$encuesta_completa_campo, na.rm = TRUE),
-      encuestas_incompletas = encuestas_efectivas - encuestas_completas,
-      pct_completas = encuestas_completas / encuestas_totales,
-      pct_efectivas = encuestas_efectivas / encuestas_totales
-    )
+  encuestas_totales <- nrow(base_eval)
+  encuestas_efectivas <- sum(base_eval$encuesta_efectiva_campo, na.rm = TRUE)
+  encuestas_completas <- sum(base_eval$encuesta_completa_campo, na.rm = TRUE)
+  encuestas_incompletas_n <- encuestas_efectivas - encuestas_completas
+
+  resumen_general <- tibble::tibble(
+    encuestas_totales = encuestas_totales,
+    encuestas_efectivas = encuestas_efectivas,
+    encuestas_completas = encuestas_completas,
+    encuestas_incompletas = encuestas_incompletas_n,
+    pct_completas = encuestas_completas / encuestas_totales,
+    pct_efectivas = encuestas_efectivas / encuestas_totales
+  )
 
   resumen_segmento <- base_eval %>%
     dplyr::group_by(.data$SEGMENTO, .data$CLASE) %>%
@@ -220,9 +232,11 @@ comparar_completitud_existencia_vs_campo <- function(
 
   ids_existencia <- pipe_comp$final %>%
     dplyr::distinct(.data$DIRECTORIO) %>%
+    normalize_keys("DIRECTORIO") %>%
     dplyr::mutate(encuesta_completa_existencia = TRUE)
 
-  campo <- clasificar_completitud_campo(dfs)
+  campo <- clasificar_completitud_campo(dfs) %>%
+    normalize_keys("DIRECTORIO")
 
   comparado <- campo %>%
     dplyr::left_join(ids_existencia, by = "DIRECTORIO") %>%
@@ -242,5 +256,3 @@ comparar_completitud_existencia_vs_campo <- function(
     resumen_cruce = resumen_cruce
   )
 }
-
-

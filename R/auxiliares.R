@@ -22,6 +22,108 @@ n_distinct_safe <- function(data, vars) {
   data %>% dplyr::distinct(dplyr::across(dplyr::all_of(vars))) %>% nrow()
 }
 
+preparar_df_exportacion <- function(df) {
+  if (!is.data.frame(df)) {
+    stop("`df` debe ser un data.frame.")
+  }
+
+  df <- df %>%
+    dplyr::mutate(dplyr::across(where(is.factor), as.character))
+
+  cols_lista <- names(df)[vapply(df, is.list, logical(1))]
+  if (length(cols_lista) > 0) {
+    df[cols_lista] <- lapply(df[cols_lista], function(x) vapply(x, toString, character(1)))
+  }
+
+  arreglar_utf8_df(df)
+}
+
+preparar_caps_flujo <- function(caps_orden) {
+  caps_orden <- toupper(caps_orden)
+  caps_excluidos <- intersect(caps_orden, names(Edad_objeto))
+  caps_flujo <- setdiff(caps_orden, caps_excluidos)
+
+  if (length(caps_excluidos) > 0) {
+    message(
+      "Se excluyen del flujo secuencial los capítulos condicionados por edad: ",
+      paste(caps_excluidos, collapse = ", "),
+      ". Evalúelos con la lógica de completitud por elegibilidad."
+    )
+  }
+
+  caps_flujo
+}
+
+#' Expande la presencia del capítulo C a nivel vivienda
+#'
+#' Identifica y expande la presencia del capítulo C a nivel vivienda. Marca como presentes en capítulo C a todos los hogares de una vivienda
+#' (`DIRECTORIO`) cuando al menos uno de sus hogares tiene registro en `df_c`.
+#' Esta función sirve para corregir la lógica de cruce del capítulo C cuando
+#' dicho capítulo aplica solo al primer hogar de la vivienda.
+#'
+#' @param base_hogares `data.frame` con los hogares base a evaluar. Debe contener
+#'   las columnas `DIRECTORIO` y `SECUENCIA_P`.
+#' @param df_c `data.frame` del capítulo C. Debe contener al menos la columna
+#'   `DIRECTORIO`.
+#'
+#' @return Un `data.frame` con las columnas `DIRECTORIO` y `SECUENCIA_P`,
+#' correspondiente al subconjunto de `base_hogares` cuya vivienda
+#' presenta información en el capítulo C.
+#'
+#' @details
+#' La función no agrega columnas; retorna únicamente los hogares cuya
+#' vivienda tiene presencia en capítulo C.
+#'
+#' La lógica es a nivel vivienda, no a nivel hogar. Si cualquier hogar del mismo
+#' `DIRECTORIO` aparece en `df_c`, entonces se considera que la vivienda tiene
+#' presencia en capítulo C y esa presencia se expande a todos sus hogares en
+#' `base_hogares`.
+#'
+#' Si `base_hogares` es `NULL`, no es un `data.frame` o está vacío, la función
+#' retorna `base_hogares` sin modificar. Si `df_c` es `NULL`, no es un
+#' `data.frame`, está vacío o no contiene `DIRECTORIO`, retorna un `data.frame`
+#' vacío con las columnas `DIRECTORIO` y `SECUENCIA_P`.
+#'
+#' @examples
+#' base_hogares <- data.frame(
+#'   DIRECTORIO = c(1, 1, 2),
+#'   SECUENCIA_P = c(1, 2, 1)
+#' )
+#'
+#' df_c <- data.frame(
+#'   DIRECTORIO = c(1),
+#'   SECUENCIA_P = c(1)
+#' )
+#'
+#' expandir_presencia_capitulo_c(base_hogares, df_c)
+#'
+#' @export
+expandir_presencia_capitulo_c <- function(base_hogares, df_c) {
+  if (is.null(base_hogares) || !is.data.frame(base_hogares) || nrow(base_hogares) == 0) {
+    return(base_hogares)
+  }
+
+  req_base <- c("DIRECTORIO", "SECUENCIA_P")
+  if (!all(req_base %in% names(base_hogares))) {
+    stop("`base_hogares` debe contener DIRECTORIO y SECUENCIA_P.")
+  }
+
+  if (is.null(df_c) || !is.data.frame(df_c) || nrow(df_c) == 0 || !"DIRECTORIO" %in% names(df_c)) {
+    return(base_hogares[0, req_base, drop = FALSE])
+  }
+
+  base_hogares <- normalize_keys(base_hogares, req_base) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P)
+
+  directorios_con_c <- df_c %>%
+    normalize_keys("DIRECTORIO") %>%
+    dplyr::distinct(DIRECTORIO)
+
+  base_hogares %>%
+    dplyr::inner_join(directorios_con_c, by = "DIRECTORIO") %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P)
+}
+
 #' Encontrar la primera columna existente dentro de un conjunto de candidatos
 #'
 #' Busca, en orden, el primer nombre de variable de \code{candidates} que

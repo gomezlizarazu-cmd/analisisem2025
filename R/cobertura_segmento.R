@@ -186,10 +186,15 @@ build_base_completitud_hogar <- function(dfs,
           dplyr::mutate(!!paste0("pres_", cap) := 1L)
       },
       hogar = {
-        df_cap %>%
-          dplyr::distinct(DIRECTORIO, SECUENCIA_P) %>%
-          normalize_keys(c("DIRECTORIO", "SECUENCIA_P")) %>%
-          dplyr::mutate(!!paste0("pres_", cap) := 1L)
+        if (cap == "C") {
+          expandir_presencia_capitulo_c(base_hogares, df_cap) %>%
+            dplyr::mutate(!!paste0("pres_", cap) := 1L)
+        } else {
+          df_cap %>%
+            dplyr::distinct(DIRECTORIO, SECUENCIA_P) %>%
+            normalize_keys(c("DIRECTORIO", "SECUENCIA_P")) %>%
+            dplyr::mutate(!!paste0("pres_", cap) := 1L)
+        }
       },
       persona = {
         df_cap %>%

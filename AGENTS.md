@@ -84,6 +84,10 @@ devtools::load_all()
 devtools::check()
 ```
 
+### 5. Documentar funciones 
+- Agrega documentación para las funciones creadas roxygen2 completa, incluyendo @param, @return, @details y ejemplos, siguiendo buenas prácticas de paquetes en R.
+
+
 ---
 
 ## Niveles de granularidad (CRÍTICO)
@@ -132,6 +136,17 @@ Después del join:
 - validar si el cambio de filas es esperado
 - advertir si hay expansión no intencional
 
+## Reglas de llaves (CRÍTICO)
+
+- Todas las llaves deben normalizarse con `normalize_keys()`.
+- Nunca usar `as.character()` directamente para llaves.
+- Nunca hacer joins sin normalizar previamente.
+- Llaves estándar:
+  - vivienda: DIRECTORIO
+  - hogar: DIRECTORIO + SECUENCIA_P
+  - persona: DIRECTORIO + SECUENCIA_P + ORDEN
+
+
 ---
 
 ## Interpretación de conteos
@@ -166,3 +181,5 @@ Debe:
 - sugerir llaves correctas según nivel
 
 ⚠️ El agente nunca debe modificar la lógica sin instrucción explícita del usuario
+
+
