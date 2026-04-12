@@ -377,3 +377,119 @@ leer_tabla_flexible <- function(path) {
 
   stop(paste0("Extensión no soportada: ", ext, " | archivo: ", basename(path)))
 }
+
+#' Cargar capítulos de encuesta por fecha de corte
+#'
+#' Encapsula el flujo operativo de carga de archivos de capítulos para una fecha
+#' específica, construyendo la lista \code{dfs} y un resumen inicial por capítulo.
+#'
+#' @param fecha_corte Fecha de corte en formato \code{"YYYYMMDD"}.
+#' @param carpeta_raiz Carpeta raíz donde están las carpetas de capítulos.
+#' @param prefijo_carpeta Prefijo de la carpeta de capítulos. Por defecto
+#'   \code{"CAP_EM_"}.
+#' @param orden_caps Orden deseado de capítulos en la salida. Por defecto
+#'   \code{c(LETTERS[1:13], "MA", "MB")}.
+#' @param verbose Si es \code{TRUE}, muestra mensajes de avance.
+#'
+#' @return Una lista con:
+#' \describe{
+#'   \item{dfs}{Lista nombrada de capítulos cargados y ordenados.}
+#'   \item{resumen_carga}{Tibble con \code{cap}, \code{n} y \code{p}.}
+#'   \item{carpeta_caps}{Ruta de la carpeta usada para cargar archivos.}
+#'   \item{archivos}{Vector con rutas completas de los archivos encontrados.}
+#' }
+#'
+#' @details
+#' El patrón de búsqueda soporta archivos:
+#' \code{csv}, \code{xlsx}, \code{xls}, \code{txt} y \code{tsv}, con nombres
+#' del tipo \code{CAP_A_YYYYMMDD.csv}, \code{CAP_MA_YYYYMMDD.xlsx}, etc.
+#'
+#' @examples
+#' \dontrun{
+#' out <- cargar_capitulos_por_fecha(
+#'   fecha_corte = "20260409",
+#'   carpeta_raiz = "C:/ruta/proyecto/Validar"
+#' )
+#'
+#' names(out$dfs)
+#' out$resumen_carga
+#' }
+#'
+#' @export
+cargar_capitulos_por_fecha <- function(
+    fecha_corte,
+    carpeta_raiz,
+    prefijo_carpeta = "CAP_EM_",
+    orden_caps = c(LETTERS[1:13], "MA", "MB"),
+    verbose = TRUE
+) {
+
+  if (!is.character(fecha_corte) || length(fecha_corte) != 1 || is.na(fecha_corte) || !nzchar(fecha_corte)) {
+    stop("`fecha_corte` debe ser un string no vacío en formato 'YYYYMMDD'.")
+  }
+
+  if (!is.character(carpeta_raiz) || length(carpeta_raiz) != 1 || is.na(carpeta_raiz) || !nzchar(carpeta_raiz)) {
+    stop("`carpeta_raiz` debe ser una ruta de carpeta válida.")
+  }
+
+  if (!is.character(prefijo_carpeta) || length(prefijo_carpeta) != 1 || is.na(prefijo_carpeta) || !nzchar(prefijo_carpeta)) {
+    stop("`prefijo_carpeta` debe ser un string no vacío.")
+  }
+
+  carpeta_caps <- file.path(carpeta_raiz, paste0(prefijo_carpeta, fecha_corte))
+
+  if (!dir.exists(carpeta_caps)) {
+    stop(paste0("No existe la carpeta: ", carpeta_caps))
+  }
+
+  if (isTRUE(verbose)) {
+    message("Usando carpeta: ", carpeta_caps)
+  }
+
+  pat <- paste0("^CAP_([A-Z]{1,2})_", fecha_corte, "\\.(csv|xlsx|xls|txt|tsv)$")
+
+  archivos <- list.files(
+    path = carpeta_caps,
+    pattern = pat,
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+
+  if (length(archivos) == 0) {
+    stop(paste0("No encontré archivos con patrón ", pat, " en: ", carpeta_caps))
+  }
+
+  dfs <- list()
+
+  for (f in archivos) {
+    cap <- stringr::str_match(
+      basename(f),
+      paste0("^CAP_([A-Z]{1,2})_", fecha_corte, "\\.")
+    )[, 2]
+
+    cap <- toupper(cap)
+
+    if (isTRUE(verbose)) {
+      message("Leyendo ", cap, " <- ", basename(f))
+    }
+
+    dfs[[cap]] <- leer_tabla_flexible(f)
+  }
+
+  orden_caps <- toupper(orden_caps)
+  caps_presentes <- intersect(orden_caps, names(dfs))
+  dfs <- dfs[caps_presentes]
+
+  resumen_carga <- tibble::tibble(
+    cap = names(dfs),
+    n = vapply(dfs, nrow, integer(1)),
+    p = vapply(dfs, ncol, integer(1))
+  )
+
+  list(
+    dfs = dfs,
+    resumen_carga = resumen_carga,
+    carpeta_caps = carpeta_caps,
+    archivos = archivos
+  )
+}

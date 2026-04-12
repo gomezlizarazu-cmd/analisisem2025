@@ -198,6 +198,9 @@ utils::globalVariables(
     "posicion_relativa",
     "orden_barra",
     "etiqueta_barra",
-    "color_barra"
+    "color_barra",
+    "cae_reporte",
+    "personas_con_caida",
+    "personas_totales"
   )
 )
