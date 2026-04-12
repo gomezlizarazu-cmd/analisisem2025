@@ -1,3 +1,107 @@
-.Rproj.user
+########################################
+# 🔴 DATOS SENSIBLES (CRÍTICO)
+########################################
+
+# Carpetas completas (RECOMENDADO)
+data/
+datos/
+input/
+output/
+bases/
+raw/
+processed/
+reportes/
+export/
+resultados/
+
+# Archivos pesados o sensibles
+*.sav
+*.dta
+*.rds
+*.RData
+*.zip
+*.rar
+*.7z
+
+########################################
+# 🟠 DATOS TABULARES (CONTROLADOS)
+########################################
+
+# Ignorar por defecto
+*.csv
+*.xlsx
+*.xls
+
+# ✅ Permitir ejemplos/documentación
+!data_sample/
+!data_sample/**
+
+########################################
+# 🔴 CONFIGURACIÓN SENSIBLE
+########################################
+
+.env
+.env.*
+.Renviron
+.Rprofile
+.httr-oauth
+config-local.yml
+
+########################################
+# 🔴 TEMPORALES R
+########################################
+
 .Rhistory
 *.Rhistory
+.Ruserdata
+.Rproj.user/
+
+########################################
+# 🔴 CACHE Y QUARTO
+########################################
+
+_cache/
+.quarto/
+*.nb.html
+
+########################################
+# 🔴 PIPELINES (si usas targets/drake)
+########################################
+
+_targets/
+_drake/
+
+########################################
+# 🔴 SISTEMA / LOGS
+########################################
+
+.DS_Store
+Thumbs.db
+*.log
+
+########################################
+# 🔴 PRUEBAS LOCALES / BORRADORES
+########################################
+
+sandbox/
+pruebas/
+
+########################################
+# 🔴 DICCIONARIOS SENSIBLES
+########################################
+
+DICCIONARIO*.xlsx
+
+########################################
+# 🟢 EXCEPCIONES IMPORTANTES (CÓDIGO)
+########################################
+
+!R/
+!man/
+!DESCRIPTION
+!NAMESPACE
+!README.md
+!*.R
+!AGENTS.md
+!*.Rproj
+!tests/

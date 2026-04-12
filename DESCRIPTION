@@ -23,5 +23,6 @@ Imports:
     tibble,
     tidyselect
 Suggests:
-    openxlsx
+    openxlsx,
+    plotly
 RoxygenNote: 7.3.3
