@@ -39,11 +39,13 @@ clasificar_completitud_campo <- function(
       DIRECTORIO,
       UUID,
       PERIODO = periodo,
+      RES_VIV = .data$RES_VIV,
       SEGMENTO = if ("SEGMENTO" %in% names(.)) dplyr::coalesce(gsub("_", "", SEGMENTO), "SIN_SEGMENTO") else NA_character_,
       CLASE = if ("CLASE" %in% names(.)) dplyr::coalesce(CLASE, 0) else NA_real_,
       viv_efectiva = .data$NVCAPCTRL1 %in% c(1, 2),
       viv_ocupada = .data$NVCAPCTRL1 == 1,
       viv_ocupada_presente = .data$NVCAPCTRL1 == 1 & .data$NVCAPCTRL2 == 1,
+      viv_resultado_completo = .data$RES_VIV == 1,
       estado_viv = dplyr::case_when(
         .data$NVCAPCTRL1 == 1 & .data$NVCAPCTRL2 == 1 ~ "ocupada_presente",
         .data$NVCAPCTRL1 == 1 & .data$NVCAPCTRL2 == 2 & .data$NVCAPCTRL2A == 1 ~ "rechazo",
@@ -126,6 +128,7 @@ clasificar_completitud_campo <- function(
     dplyr::mutate(
       encuesta_completa_campo =
         .data$viv_ocupada_presente &
+        dplyr::coalesce(.data$viv_resultado_completo, FALSE) &
         dplyr::coalesce(.data$todos_hogares_completos, FALSE) &
         dplyr::coalesce(.data$todas_personas_completas, FALSE),
       encuesta_efectiva_campo =
@@ -186,6 +189,7 @@ diagnostico_completitud_campo <- function(dfs, periodo = 2025) {
     dplyr::mutate(
       motivo_principal = dplyr::case_when(
         !.data$viv_ocupada_presente ~ paste0("vivienda_", .data$estado_viv),
+        !.data$viv_resultado_completo ~ "vivienda_res_viv",
         !.data$todos_hogares_completos ~ "hogar_incompleto",
         !.data$todas_personas_completas ~ "persona_incompleta",
         TRUE ~ "otro"

@@ -83,6 +83,8 @@ Variables de diagnóstico:
 devtools::load_all()
 devtools::check()
 ```
+### 5. Utilizar funciones existentes
+Las funciones existentes ya resolvieron muchos de los problemas emergentes. Usar siempre las funciones del paquete. Solo cuando no existan y sea estrictamente necesario crear nuevas.
 
 ---
 
@@ -166,3 +168,31 @@ Debe:
 - sugerir llaves correctas según nivel
 
 ⚠️ El agente nunca debe modificar la lógica sin instrucción explícita del usuario
+
+
+## Diccionario de variables
+
+El diccionario oficial de la encuesta se encuentra en:
+
+inst/diccionario/Diccionario_em2025.xlsx
+
+Contiene:
+- Nombre de variable
+- Descripción
+- Dominio
+- Tipo
+
+Regla:
+- Toda variable usada en validaciones debe poder mapearse al diccionario
+- Usar nombres en mayúscula
+- Normalizar espacios y encoding
+
+Las descripciones de variables provienen del diccionario oficial:
+
+inst/diccionario/diccionario_em2025.xlsx
+
+Convenciones:
+- Variables en errores: error_<VAR>
+- Para buscar descripción: limpiar prefijos y usar nombre base
+- Usar get_desc_fina() cuando esté disponible
+

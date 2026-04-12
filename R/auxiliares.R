@@ -317,3 +317,86 @@ tabla_gt <- function(data,
 
   tabla
 }
+
+#' Exportar tablas a Excel con formato simple
+#'
+#' Exporta un `data.frame` o una lista nombrada de `data.frame` a un archivo
+#' Excel usando `openxlsx`, con encabezados en negrilla y ajuste automatico del
+#' ancho de columnas.
+#'
+#' @param x Objeto a exportar. Puede ser un `data.frame` o una lista nombrada de
+#'   `data.frame`.
+#' @param ruta Ruta del archivo `.xlsx` de salida.
+#' @param hoja Nombre de la hoja cuando `x` es un solo `data.frame`.
+#'
+#' @return Ruta normalizada del archivo exportado.
+#' @export
+exportar_tablas_excel <- function(x,
+                                  ruta,
+                                  hoja = "Resumen") {
+
+  if (!requireNamespace("openxlsx", quietly = TRUE)) {
+    stop("Se requiere el paquete `openxlsx` para exportar a Excel.")
+  }
+
+  es_df <- is.data.frame(x)
+  es_lista_df <- is.list(x) &&
+    length(x) > 0 &&
+    all(vapply(x, is.data.frame, logical(1)))
+
+  if (!es_df && !es_lista_df) {
+    stop("`x` debe ser un data.frame o una lista nombrada de data.frames.")
+  }
+
+  if (es_lista_df) {
+    if (is.null(names(x)) || any(names(x) == "")) {
+      stop("Si `x` es una lista, debe tener nombres para usar como hojas.")
+    }
+    hojas <- x
+  } else {
+    hojas <- list()
+    hojas[[hoja]] <- x
+  }
+
+  wb <- openxlsx::createWorkbook()
+
+  header_style <- openxlsx::createStyle(
+    textDecoration = "bold",
+    halign = "center",
+    border = "bottom"
+  )
+
+  for (nm in names(hojas)) {
+    hoja_nm <- substr(nm, 1, 31)
+
+    df_out <- hojas[[nm]] %>%
+      dplyr::mutate(
+        dplyr::across(where(is.factor), as.character),
+        dplyr::across(where(is.list), ~ vapply(., toString, character(1)))
+      ) %>%
+      arreglar_utf8_df()
+
+    openxlsx::addWorksheet(wb, hoja_nm)
+    openxlsx::writeData(wb, hoja_nm, df_out)
+
+    openxlsx::addStyle(
+      wb,
+      sheet = hoja_nm,
+      style = header_style,
+      rows = 1,
+      cols = seq_len(ncol(df_out)),
+      gridExpand = TRUE
+    )
+
+    openxlsx::setColWidths(
+      wb,
+      sheet = hoja_nm,
+      cols = seq_len(ncol(df_out)),
+      widths = "auto"
+    )
+  }
+
+  openxlsx::saveWorkbook(wb, ruta, overwrite = TRUE)
+
+  normalizePath(ruta, winslash = "/", mustWork = FALSE)
+}
