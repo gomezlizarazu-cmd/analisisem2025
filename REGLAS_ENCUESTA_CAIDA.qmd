@@ -1,0 +1,142 @@
+---
+title: "REGLAS_ENCUESTA_CAIDA"
+format: html
+---
+
+# REGLAS_ENCUESTA_CAIDA
+
+## 1) Archivos revisados
+
+Se revisaron los siguientes archivos para identificar reglas de detección, resumen, propagación y exportación de encuestas caídas:
+
+- `AGENTS.md`
+- `R/diagnosticos.R`
+- `R/completitud_campo.R`
+- `R/completitud_lina.R`
+- `R/completitud_tres_criterios.R`
+- `R/diagnostico_cruce_capitulos.R`
+- `R/cobertura_segmento.R`
+- `R/auxiliares.R`
+
+> Nota: `R/auxiliares.R` aporta utilidades de limpieza/formato (`arreglar_utf8_df`, etc.) usadas en exportaciones, pero no define por sí mismo criterios sustantivos de “caída”.
+
+---
+
+## 2) Tabla de reglas de encuesta caída en el código actual
+
+| Criterio | Archivo | Función | Nivel | Llave usada | Variables involucradas | Condición exacta | Tipo de regla | Observaciones |
+|---|---|---|---|---|---|---|---|---|
+| Flujo secuencial: no pega en paso | `R/diagnosticos.R` | `diagnostico_flujo_caps()` | Según intersección del paso (vivienda/hogar/persona) | `keys_use = intersect(keys_acum, get_join_keys(cap_nuevo))` | `en_base`, `en_nuevo`, `tipo_no_pega` | Se marca no-pega cuando `!is.na(en_base) & is.na(en_nuevo)` o `is.na(en_base) & !is.na(en_nuevo)` tras `full_join` de llaves únicas | detecta | Detecta eventos de caída de cruce por paso; no define “encuesta caída” final, sino eventos de no pegue por transición. |
+| Flujo secuencial: caída absoluta | `R/diagnosticos.R` | `pipeline_encuestas_completas()` | Según intersección de llaves por paso | `keys_use` por paso | `n_base`, `n_resultado`, `caida_abs`, `retencion_pct` | `caida_abs = n_base - n_resultado` con supervivencia medida por `inner_join` de llaves | resume | Resume pérdida de unidades por paso; sirve como señal macro de caída de flujo. |
+| Flujo exportado: encuesta caída consolidada | `R/diagnosticos.R` | `exportar_reporte_encuestas_caidas()` | Encuesta (hogar) | `DIRECTORIO + SECUENCIA_P` | `no_pegan`, `paso`, `base_acumulada`, `cap_nuevo` | Encuesta caída = registro presente en `no_pegan` (primer o último evento según `quedarse_con`) | detecta | Colapsa múltiples eventos por encuesta a una sola fila (`primero`/`ultimo`). |
+| Flujo exportado: propagación a personas | `R/diagnosticos.R` | `exportar_reporte_encuestas_caidas()` | Persona | `DIRECTORIO + SECUENCIA_P` (join) y opcional `ORDEN` en salida | `personas_caidas`, `paso_caida`, `capitulo_falla` | Persona cae si pertenece a encuesta caída (`semi_join` por `DIRECTORIO,SECUENCIA_P`) | propaga | Expansión intencional de caída de encuesta (hogar) a todas las personas de la encuesta. |
+| Campo: vivienda efectiva | `R/completitud_campo.R` | `clasificar_completitud_campo()` | Vivienda | `DIRECTORIO` | `NVCAPCTRL1` | `viv_efectiva = NVCAPCTRL1 %in% c(1,2)` | detecta | Define universo “efectivo” para el criterio campo. |
+| Campo: vivienda ocupada y presente | `R/completitud_campo.R` | `clasificar_completitud_campo()` | Vivienda | `DIRECTORIO` | `NVCAPCTRL1`, `NVCAPCTRL2` | `viv_ocupada_presente = (NVCAPCTRL1 == 1 & NVCAPCTRL2 == 1)` | detecta | Es condición obligatoria de completitud de encuesta en campo. |
+| Campo: hogar completo | `R/completitud_campo.R` | `clasificar_completitud_campo()` | Hogar (resumido a vivienda) | Entrada: `DIRECTORIO+SECUENCIA_P`; resumen: `DIRECTORIO` | `NHCCPCTRL1`, `RES_HOG`, `todos_hogares_completos` | Por hogar: `NHCCPCTRL1==1 & RES_HOG==1`; por vivienda: `all(hogar_completo)` | detecta | Si falta algún hogar completo en la vivienda, la encuesta cae por hogar. |
+| Campo: persona completa | `R/completitud_campo.R` | `clasificar_completitud_campo()` | Persona (resumido a vivienda) | Entrada: `DIRECTORIO+SECUENCIA_P+ORDEN`; resumen: `DIRECTORIO` | `NPCEPCTRL1`, `RES_PER`, `todas_personas_completas` | Por persona: `NPCEPCTRL1==1 & RES_PER==1`; por vivienda: `all(persona_completa)` | detecta | Si falta alguna persona completa en la vivienda, la encuesta cae por persona. |
+| Campo: encuesta completa | `R/completitud_campo.R` | `clasificar_completitud_campo()` | Encuesta (vivienda) | `DIRECTORIO` | `viv_ocupada_presente`, `viv_resultado_completo`, `todos_hogares_completos`, `todas_personas_completas` | `encuesta_completa_campo = viv_ocupada_presente & coalesce(viv_resultado_completo,FALSE) & coalesce(todos_hogares_completos,FALSE) & coalesce(todas_personas_completas,FALSE)` | detecta | Definición operativa principal de caída en criterio campo: cae cuando esta bandera es `FALSE`. |
+| Campo: encuesta efectiva | `R/completitud_campo.R` | `clasificar_completitud_campo()` | Encuesta (vivienda) | `DIRECTORIO` | `viv_efectiva`, `n_hogares` | `encuesta_efectiva_campo = viv_efectiva & coalesce(n_hogares,0)>0` | detecta | Algunas salidas de caída de campo usan solo efectivas (`efectiva & !completa`). |
+| Campo: motivos de incompletitud | `R/completitud_campo.R` | `diagnostico_completitud_campo()` | Encuesta | `DIRECTORIO` | `estado_viv`, `viv_resultado_completo`, `todos_hogares_completos`, `todas_personas_completas` | `motivo_principal` por prioridad: vivienda estado, `vivienda_res_viv`, `hogar_incompleto`, `persona_incompleta` | resume | Resume causas; prioridad secuencial puede ocultar causas simultáneas. |
+| Campo: caída por segmento | `R/completitud_campo.R` | `diagnostico_completitud_campo()` | Segmento/Clase | `SEGMENTO + CLASE` | `encuestas_completas`, `encuestas_totales`, `cobertura`, `caida` | `caida = 1 - (encuestas_completas/encuestas_totales)` | resume | Métrica agregada de caída territorial/operativa. |
+| Lina: vivienda completa | `R/completitud_lina.R` | `diagnostico_completitud_lina()` | Vivienda | `DIRECTORIO` | `NVCAPCTRL1`, `NVCAPCTRL2`, `NVCBP1`, `NVCBP16` | `vivienda_completa_lina = NVCAPCTRL1==1 & NVCAPCTRL2==1 & .valor_no_vacio(NVCBP1) & .valor_no_vacio(NVCBP16)` | detecta | Mezcla control de A + variables sustantivas de B. |
+| Lina: hogar completo | `R/completitud_lina.R` | `diagnostico_completitud_lina()` | Hogar | `DIRECTORIO + SECUENCIA_P` | `NHCCPCTRL1`, `NHCCP1`, `NHCMP1A`, `NHCMP5A` | `hogar_completo_lina = NHCCPCTRL1==1 & .valor_no_vacio(NHCCP1) & .valor_no_vacio(NHCMP1A) & .valor_no_vacio(NHCMP5A)` | detecta | Integra C y MA a nivel hogar. |
+| Lina: persona completa | `R/completitud_lina.R` | `diagnostico_completitud_lina()` | Persona | `DIRECTORIO + SECUENCIA_P + ORDEN` | `NPCEPCTRL1`, `NPCEP6` | `persona_completa_lina = NPCEPCTRL1==1 & .valor_no_vacio(NPCEP6)` | detecta | Criterio individual mínimo en E. |
+| Lina: encuesta caída a nivel persona | `R/completitud_lina.R` | `diagnostico_completitud_lina()` | Encuesta/persona | `DIRECTORIO + SECUENCIA_P + ORDEN` | `cae_por_vivienda_lina`, `cae_por_hogar_lina`, `cae_por_persona_lina` | `encuesta_caida_lina = cae_por_vivienda_lina | cae_por_hogar_lina | cae_por_persona_lina` | detecta | La salida final se filtra a `encuesta_caida_lina == TRUE` y queda a nivel persona. |
+| Lina: cruce con existencia | `R/completitud_lina.R` | `diagnostico_completitud_lina()` | Persona | `DIRECTORIO + SECUENCIA_P + ORDEN` | `cae_lina`, `cae_existencia`, `tipo_cruce` | Clasifica `misma_caida`, `adicional_lina`, `solo_existencia`, `sin_caida` | resume | No redefine caída; compara superposición de criterios. |
+| Existencia: vivienda completa por presencia de capítulos | `R/diagnostico_cruce_capitulos.R` | `.build_eval_vivienda()` | Vivienda | `DIRECTORIO` | `pres_*`, `n_caps_faltantes`, `vivienda_completa` | `vivienda_completa = (n_caps_faltantes == 0)` con `pres_*` por capítulo | detecta | Caída estructural: falta aparición en uno o más capítulos evaluados. |
+| Existencia: hogar completo por requerimiento | `R/diagnostico_cruce_capitulos.R` | `.build_eval_hogar()` | Hogar | `DIRECTORIO + SECUENCIA_P` | `req_*`, `pres_*`, `ok_*`, `n_caps_faltantes`, `hogar_completo` | `ok_cap = 1` si `req_cap==0` o `pres_cap==1`; `hogar_completo = (n_caps_faltantes==0)` | detecta | Regla especial: `req_B=0`; `F,G,H,I,J,K` dependen de elegibilidad/personas. |
+| Existencia: persona completa por requerimiento etario | `R/diagnostico_cruce_capitulos.R` | `.build_eval_persona()` | Persona | `DIRECTORIO + SECUENCIA_P + ORDEN` | `edad`, `req_*`, `pres_*`, `ok_*`, `persona_completa` | `req_E=req_F=1`; `req_G(edad<5)`, `req_H/I(edad>=5)`, `req_J/K(edad>=10)`; `persona_completa=(n_caps_faltantes==0)` | detecta | Base para caída por existencia a nivel persona. |
+| Existencia: resumen faltantes por capítulo | `R/diagnostico_cruce_capitulos.R` | `.resumen_req_ok()` | Hogar / Persona | Llave del `eval_df` | `req_*`, `ok_*`, `pct_faltantes` | `faltantes = sum(req==1 & ok==0)`; `pct_faltantes = faltantes/requeridos` | resume | No detecta unidad caída nueva; consolida magnitud por capítulo. |
+| Propagación regla 1 (total) | `R/diagnostico_cruce_capitulos.R` | `.resumen_caidas_propaga_regla1()` | Vivienda/Hogar/Persona | Vivienda: `DIRECTORIO`; Hogar: `DIRECTORIO+SECUENCIA_P`; Persona: `DIRECTORIO+SECUENCIA_P+ORDEN` | `src_v`, `src_h`, `src_p`, `capitulos_caida`, `fuentes_caida` | En regla 1, eventos de vivienda/hogar/persona se agregan a `DIRECTORIO` y luego se expanden a hogares/personas del directorio | propaga | La caída de hogar también tumba toda la vivienda y todas sus personas. |
+| Propagación regla 2 (parcial) | `R/diagnostico_cruce_capitulos.R` | `.resumen_caidas_propaga_regla2()` | Vivienda/Hogar/Persona | Idem arriba | `eventos_dir_viv`, `hog_directos`, `per_desde_viv`, `per_desde_hog` | Vivienda recibe caídas de vivienda+persona; hogar recibe (desde vivienda) + (hogar/persona del hogar); persona recibe (desde vivienda) + (desde hogar) + (propia) | propaga | Regla oficial usada para cruces en otros módulos; evita que caída de hogar derribe automáticamente toda vivienda. |
+| Tres criterios: caída campo base | `R/completitud_tres_criterios.R` | `.preparar_caidas_campo_tres_criterios()` | Vivienda | `DIRECTORIO` | `encuesta_efectiva_campo`, `encuesta_completa_campo` | `cae_campo = encuesta_efectiva_campo & !encuesta_completa_campo` | detecta | Hereda criterio campo y lo deja compatible con cruce integrado. |
+| Tres criterios: caída campo por conteo personas hogar | `R/completitud_tres_criterios.R` | `.preparar_causal_conteo_personas_hogar()` | Hogar (propagable) | `DIRECTORIO + SECUENCIA_P` | `NHCCPCTRL2`, `n_personas_cap_e` | `cae_campo_nhccpctrl2 = !is.na(NHCCPCTRL2) & NHCCPCTRL2 != n_personas_cap_e` | detecta | Regla adicional de campo no incluida en `completitud_campo` base. |
+| Tres criterios: integración final de caída | `R/completitud_tres_criterios.R` | `.finalizar_cruce_tres_criterios()` | Vivienda/Hogar/Persona | Según nivel del dataframe | `cae_existencia`, `cae_lina`, `cae_campo_base`, `cae_campo_nhccpctrl2`, `n_criterios_caida` | `cae_campo = cae_campo_base | cae_campo_nhccpctrl2`; `n_criterios_caida = as.integer(cae_existencia)+as.integer(cae_lina)+as.integer(cae_campo)` | resume | Estructura unificada para identificar caída en uno o varios criterios. |
+| Tres criterios: unidades caídas | `R/completitud_tres_criterios.R` | `diagnostico_caidas_tres_criterios()` | Vivienda/Hogar/Persona | Llave del nivel | `n_criterios_caida` | Unidad caída si `n_criterios_caida > 0` | detecta | Regla explícita de consolidación multi-criterio. |
+| Cobertura por segmento (hogar completo) | `R/cobertura_segmento.R` | `build_base_completitud_hogar()` | Hogar | `DIRECTORIO + SECUENCIA_P` | `req_*`, `pres_*`, `ok_*`, `n_caps_faltantes`, `encuesta_completa` | `encuesta_completa = ifelse(n_caps_faltantes==0,1,0)` | detecta | Criterio de completitud estructural por hogar, reutilizable como caída (`0`). |
+| Cobertura por segmento: caída agregada | `R/cobertura_segmento.R` | `cobertura_segmento_fina()` | Segmento | `SEGMENTO` | `hogares_completos`, `hogares_totales`, `caida` | `caida = 1 - cobertura`, `cobertura = hogares_completos/hogares_totales` | resume | Resumen agregado de caída; no identifica motivo puntual por hogar/persona. |
+| Exportación de caídas (existencia/Lina/tres criterios) | `R/diagnostico_cruce_capitulos.R`, `R/completitud_lina.R`, `R/completitud_tres_criterios.R`, `R/diagnosticos.R` | `.exportar_diagnostico_cruce_excel()`, `exportar_reporte_encuestas_caidas_lina()`, `.exportar_caidas_tres_criterios_excel()`, `exportar_reporte_encuestas_caidas*()` | N/A (salida) | Según hoja | `openxlsx`, `arreglar_utf8_df` | Escribe hojas con tablas de caídas y resúmenes | exporta | No cambia la detección; materializa resultados para operación. |
+
+---
+
+## 3) Ambigüedades, solapamientos y posibles contradicciones
+
+### A. Distintas “unidades” para la palabra encuesta
+
+- En `completitud_campo`, la encuesta cae a nivel **vivienda (`DIRECTORIO`)**.
+- En `exportar_reporte_encuestas_caidas`, la encuesta caída se fija a **hogar (`DIRECTORIO + SECUENCIA_P`)**.
+- En `completitud_lina`, `encuestas_caidas_lina` se entrega a **nivel persona** (aunque el nombre diga encuesta).
+
+**Riesgo:** comparar conteos directos entre módulos sin armonizar nivel produce aparentes discrepancias.
+
+### B. Criterio campo no es único dentro del paquete
+
+- `completitud_campo` usa principalmente estado operativo y resultados (`NVCAPCTRL*`, `RES_*`).
+- `completitud_tres_criterios` agrega una regla extra de campo por desajuste `NHCCPCTRL2` vs personas en `E`.
+
+**Riesgo:** una unidad puede “caer en campo” en tres criterios aunque no cayera en `diagnostico_completitud_campo` base.
+
+### C. Dos reglas de propagación estructural (regla1 vs regla2)
+
+- Regla 1: caída de hogar se propaga totalmente al directorio.
+- Regla 2: propagación parcial (la de hogar no tumba automáticamente toda vivienda).
+
+**Riesgo:** distintos totales según la regla usada. Varios cruces posteriores usan **regla2** como referencia.
+
+### D. Priorización secuencial de motivos
+
+- En campo y Lina se prioriza un motivo principal por orden (`vivienda` > `hogar` > `persona` en varios casos).
+
+**Riesgo:** si hay fallas simultáneas, el motivo principal no refleja toda la combinación (aunque algunas funciones sí guardan texto combinado como `criterio_falla_*`).
+
+### E. Dependencia del capítulo base y variable de edad
+
+- Requerimientos etarios de existencia dependen de edad en capítulo base de personas (`edad_var`, por defecto `NPCEP4`).
+
+**Riesgo:** cambiar base/variable de edad altera qué capítulos son “requeridos” y por ende las caídas.
+
+### F. Concepto “efectiva” en campo
+
+- Varias salidas de caída de campo usan `encuesta_efectiva_campo & !encuesta_completa_campo`.
+- Otras listas (`encuestas_incompletas` en `diagnostico_completitud_campo`) filtran solo por `!encuesta_completa_campo`.
+
+**Riesgo:** diferente denominador operativo para “caída de campo”.
+
+---
+
+## 4) Propuesta de definición integrada de “encuesta caída” (basada en el código actual)
+
+### 4.1 Definición operativa multinivel propuesta
+
+Para mantener consistencia con el paquete actual, definir “encuesta caída” como una **bandera por unidad analítica explícita**:
+
+- **Caída por existencia (estructural):**
+  - unidad cae si `n_caps_faltantes > 0` en su nivel (`vivienda_completa`, `hogar_completo`, `persona_completa` en falso).
+- **Caída por campo (operativa):**
+  - base: `encuesta_efectiva_campo & !encuesta_completa_campo` (nivel vivienda),
+  - extendida (tres criterios): además `NHCCPCTRL2 != n_personas_cap_e` a nivel hogar.
+- **Caída por Lina (criterio alterno):**
+  - unidad cae si falla cualquiera de sus reglas mínimas de vivienda/hogar/persona (`encuesta_caida_lina` en salidas a nivel persona).
+
+### 4.2 Regla integrada mínima para reporte único
+
+En un reporte consolidado, una unidad (idealmente persona para máxima trazabilidad) se considera caída si:
+
+- `cae_existencia == TRUE` **o**
+- `cae_lina == TRUE` **o**
+- `cae_campo == TRUE`.
+
+Equivalente al patrón ya implementado:
+
+- `n_criterios_caida = as.integer(cae_existencia) + as.integer(cae_lina) + as.integer(cae_campo)`
+- **caída integrada**: `n_criterios_caida > 0`.
+
+### 4.3 Recomendación de estandarización semántica (sin cambiar lógica)
+
+- Cuando se use el término “encuesta caída”, siempre acompañar con:
+  1) **criterio** (`existencia`, `campo`, `lina`, `integrado`),
+  2) **nivel** (`vivienda`, `hogar`, `persona`),
+  3) **regla de propagación** (`regla1` o `regla2` cuando aplique),
+  4) **denominador** (universo total vs efectivas).
+
+Así se evitan contradicciones aparentes manteniendo intacta la lógica actual del paquete.
