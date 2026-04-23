@@ -21,7 +21,8 @@ Imports:
     stringi,
     stringr,
     tibble,
-    tidyselect
+    tidyselect,
+    vctrs
 Suggests:
     openxlsx,
     plotly

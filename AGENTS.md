@@ -22,6 +22,22 @@ El enfoque principal es:
 
 ---
 
+## Cobertura diferencial por capítulo
+
+No todos los capítulos aplican al mismo universo ni al mismo nivel operativo.
+
+⚠️ Regla:
+Antes de interpretar faltantes, diferencias de conteo o aparentes caídas, el agente debe verificar si el capítulo:
+
+- aplica a vivienda, hogar o persona;
+- aplica a todos los registros del nivel;
+- o tiene una regla especial de cobertura.
+
+Ejemplo crítico:
+- Capítulo B: se usa un solo hogar por vivienda; por tanto, no se espera información de B para todos los hogares.
+
+---
+
 ## Llaves de joins (CRÍTICO)
 
 - Vivienda: `DIRECTORIO`
@@ -136,6 +152,51 @@ Después del join:
 
 ---
 
+## Regla especial de integración: Capítulo B (CRÍTICO)
+
+El Capítulo B tiene una lógica especial de unión y cobertura.
+
+### Naturaleza del capítulo
+
+El Capítulo B es un capítulo dirigido al hogar, pero conceptualmente recoge condiciones de la vivienda.  
+Por diseño operativo, dentro de una misma vivienda solo se utiliza la información de **un único hogar** para representar este capítulo.
+
+### Regla de join
+
+Cuando se integre el Capítulo B con otras bases:
+
+- **No debe esperarse cobertura para todos los hogares de la vivienda**
+- La unión de B debe hacerse considerando **solo un hogar por vivienda**
+- La ausencia de información de B en otros hogares de la misma vivienda **no constituye error**
+- Tampoco debe interpretarse automáticamente como caída, incompletitud o inconsistencia estructural
+
+### Implicación analítica
+
+Si una vivienda tiene varios hogares:
+
+- puede existir información de B para un solo hogar,
+- y los demás hogares de esa misma vivienda pueden quedar sin valores de B,
+- sin que ello implique problema de calidad ni falla de recolección.
+
+### Regla para el agente
+
+El agente debe tratar el Capítulo B como un caso especial:
+
+- advertir que su cobertura esperada no es a nivel de todos los hogares;
+- no marcar como caída la ausencia de B en hogares distintos al hogar seleccionado;
+- no proponer “correcciones” para expandir artificialmente B a todos los hogares;
+- documentar explícitamente cuando una comparación entre capítulos esté afectada por esta regla.
+
+### Validación esperada
+
+Al revisar conteos o diferencias entre capítulos, el agente debe recordar que:
+
+- `nrow()` en B no debe compararse mecánicamente contra todos los hogares de la vivienda;
+- la comparación debe hacerse bajo la lógica de “un hogar representativo por vivienda”;
+- cualquier diagnóstico de cobertura de B debe aclarar esta restricción antes de concluir existencia de caídas.
+
+---
+
 ## Interpretación de conteos
 
 Las métricas pueden basarse en:
@@ -195,4 +256,58 @@ Convenciones:
 - Variables en errores: error_<VAR>
 - Para buscar descripción: limpiar prefijos y usar nombre base
 - Usar get_desc_fina() cuando esté disponible
+
+---
+
+## Definición operativa de encuesta caída (CRÍTICO)
+
+Una "encuesta caída" no se define por una única condición, sino por la ocurrencia de al menos una falla en los criterios de validación implementados en el paquete.
+
+### Principio general
+
+Una encuesta se considera caída cuando, en el nivel de análisis correspondiente (vivienda, hogar o persona), se incumple al menos uno de los criterios definidos de:
+
+- existencia en el flujo de capítulos
+- completitud estructural entre capítulos
+- completitud de campo
+- reglas de control (Lina)
+- detección de duplicados
+
+### Regla general
+
+Una unidad se clasifica como caída si:
+
+`n_criterios_caida > 0`
+
+
+donde `n_criterios_caida` corresponde al número de reglas de validación que fallan para esa unidad.
+
+### Consideraciones importantes
+
+- No toda diferencia entre capítulos implica caída
+- No todo valor faltante implica caída
+- La clasificación depende del:
+  - nivel de análisis (vivienda, hogar, persona)
+  - universo aplicable del capítulo
+  - reglas de cobertura diferencial (ej: Capítulo B)
+
+### Ejemplo crítico
+
+La ausencia de información del Capítulo B en un hogar distinto al seleccionado dentro de la vivienda:
+
+- NO constituye caída
+- NO debe clasificarse como inconsistencia
+- es consistente con el diseño operativo de la encuesta
+
+### Regla para interpretación de resultados
+
+Antes de concluir que existe una caída, el agente debe verificar:
+
+1. si el capítulo aplica al nivel de análisis;
+2. si existe cobertura diferencial;
+3. si la diferencia proviene de un join o expansión de nivel;
+4. si la regla corresponde a detección o solo a resumen/propagación.
+
+⚠️ Conclusión:
+Una caída es el resultado de la aplicación explícita de reglas de validación, no de diferencias descriptivas entre capítulos.
 

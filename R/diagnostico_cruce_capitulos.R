@@ -157,7 +157,12 @@ diagnostico_cruce_capitulos <- function(
   hogares_universo <- .build_universo_hogar(dfs, base_hogar_cap, base_persona_cap)
   personas_universo <- .build_universo_persona(dfs, base_persona_cap, edad_var)
 
-  viviendas_eval <- .build_eval_vivienda(viviendas_universo, dfs, caps_all)
+  viviendas_eval <- .build_eval_vivienda(
+    viviendas_universo = viviendas_universo,
+    personas_universo = personas_universo,
+    dfs = dfs,
+    caps_all = caps_all
+  )
   resumen_vivienda <- .resumen_vivienda(viviendas_eval, caps_all)
   viviendas_caidas <- viviendas_eval %>%
     dplyr::filter(!.data$vivienda_completa)
@@ -409,7 +414,7 @@ diagnostico_cruce_capitulos <- function(
   personas_universo
 }
 
-.build_eval_vivienda <- function(viviendas_universo, dfs, caps_all) {
+.build_eval_vivienda <- function(viviendas_universo, personas_universo, dfs, caps_all) {
   out <- viviendas_universo
 
   for (cap in caps_all) {
@@ -427,11 +432,62 @@ diagnostico_cruce_capitulos <- function(
   }
 
   out <- .replace_na_flags(out, "^pres_")
+
+  eleg_vivienda <- personas_universo %>%
+    dplyr::group_by(.data$DIRECTORIO) %>%
+    dplyr::summarise(
+      req_F = as.integer(dplyr::n() > 0),
+      req_G = as.integer(any(!is.na(.data$edad) & .data$edad < 5)),
+      req_H = as.integer(any(!is.na(.data$edad) & .data$edad >= 5)),
+      req_I = as.integer(any(!is.na(.data$edad) & .data$edad >= 5)),
+      req_J = as.integer(any(!is.na(.data$edad) & .data$edad >= 10)),
+      req_K = as.integer(any(!is.na(.data$edad) & .data$edad >= 10)),
+      personas_vivienda = dplyr::n(),
+      .groups = "drop"
+    )
+
+  out <- out %>%
+    dplyr::left_join(eleg_vivienda, by = "DIRECTORIO")
+
+  for (cap in caps_all) {
+    req_var <- paste0("req_", cap)
+
+    if (cap %in% c("F", "G", "H", "I", "J", "K")) {
+      if (!req_var %in% names(out)) {
+        out[[req_var]] <- 0L
+      }
+    } else {
+      out[[req_var]] <- 1L
+    }
+  }
+
+  out <- .replace_na_flags(out, "^req_")
+
+  for (cap in caps_all) {
+    req_var <- paste0("req_", cap)
+    pres_var <- paste0("pres_", cap)
+    ok_var <- paste0("ok_", cap)
+
+    if (!pres_var %in% names(out)) {
+      out[[pres_var]] <- 0L
+    }
+
+    out[[ok_var]] <- ifelse(out[[req_var]] == 0L, 1L, out[[pres_var]] == 1L)
+    out[[ok_var]] <- as.integer(out[[ok_var]])
+  }
+
   pres_vars <- grep("^pres_", names(out), value = TRUE)
+  req_vars <- grep("^req_", names(out), value = TRUE)
+  ok_vars <- grep("^ok_", names(out), value = TRUE)
+  req_mat <- data.matrix(out[, req_vars, drop = FALSE])
+  ok_mat <- data.matrix(out[, ok_vars, drop = FALSE])
+
   out$n_caps_presentes <- rowSums(data.matrix(out[, pres_vars, drop = FALSE]), na.rm = TRUE)
-  out$n_caps_faltantes <- length(pres_vars) - out$n_caps_presentes
+  out$n_caps_requeridos <- rowSums(req_mat, na.rm = TRUE)
+  out$n_caps_ok_requeridos <- rowSums((req_mat == 1) & (ok_mat == 1), na.rm = TRUE)
+  out$n_caps_faltantes <- out$n_caps_requeridos - out$n_caps_ok_requeridos
   out$capitulos_presentes <- .collapse_cap_names(out, pres_vars, positive = 1L)
-  out$capitulos_faltantes <- .collapse_cap_names(out, pres_vars, positive = 0L)
+  out$capitulos_faltantes <- .collapse_missing_required(out, caps_all)
   out$vivienda_completa <- out$n_caps_faltantes == 0
   out
 }
@@ -649,7 +705,15 @@ diagnostico_cruce_capitulos <- function(
 
 .resumen_vivienda <- function(viviendas_eval, caps_all) {
   dplyr::bind_rows(lapply(caps_all, function(cap) {
+    req_var <- paste0("req_", cap)
     pres_var <- paste0("pres_", cap)
+    ok_var <- paste0("ok_", cap)
+
+    viviendas_requeridos <- if (req_var %in% names(viviendas_eval)) {
+      sum(viviendas_eval[[req_var]] == 1L, na.rm = TRUE)
+    } else {
+      0L
+    }
 
     viviendas_presentes <- if (pres_var %in% names(viviendas_eval)) {
       sum(viviendas_eval[[pres_var]] == 1L, na.rm = TRUE)
@@ -657,15 +721,27 @@ diagnostico_cruce_capitulos <- function(
       0L
     }
 
+    viviendas_ok <- if (req_var %in% names(viviendas_eval) && ok_var %in% names(viviendas_eval)) {
+      sum(viviendas_eval[[req_var]] == 1L & viviendas_eval[[ok_var]] == 1L, na.rm = TRUE)
+    } else {
+      0L
+    }
+
     viviendas_universo <- nrow(viviendas_eval)
-    viviendas_faltantes <- viviendas_universo - viviendas_presentes
+    viviendas_faltantes <- if (req_var %in% names(viviendas_eval) && ok_var %in% names(viviendas_eval)) {
+      sum(viviendas_eval[[req_var]] == 1L & viviendas_eval[[ok_var]] == 0L, na.rm = TRUE)
+    } else {
+      0L
+    }
 
     tibble::tibble(
       capitulo = cap,
       viviendas_universo = viviendas_universo,
+      viviendas_requeridos = viviendas_requeridos,
       viviendas_presentes = viviendas_presentes,
+      viviendas_ok = viviendas_ok,
       viviendas_faltantes = viviendas_faltantes,
-      pct_faltantes = ifelse(viviendas_universo > 0, round(100 * viviendas_faltantes / viviendas_universo, 2), NA_real_)
+      pct_faltantes = ifelse(viviendas_requeridos > 0, round(100 * viviendas_faltantes / viviendas_requeridos, 2), NA_real_)
     )
   }))
 }
