@@ -283,6 +283,210 @@ diagnostico_caidas_con_tematica <- function(
   salida
 }
 
+#' Resumen general de caidas con tematica por nivel
+#'
+#' Resume, por nivel de analisis, el diagnostico integrado devuelto por
+#' `diagnostico_caidas_con_tematica()`, sin recalcular criterios ni modificar
+#' sus salidas originales.
+#'
+#' Cuando `cae_duplicado` no esta materializado en `viviendas_eval` o
+#' `hogares_eval`, la funcion lo deriva desde `reporte_final_caidas` y lo
+#' agrega explicitamente por llave, respetando que el criterio de duplicados se
+#' detecta originalmente a nivel persona.
+#'
+#' La funcion trabaja directamente sobre `viviendas_eval`, `hogares_eval` y
+#' `personas_eval`, manteniendo la granularidad propia de cada nivel:
+#'
+#' - vivienda: `DIRECTORIO`
+#' - hogar: `DIRECTORIO + SECUENCIA_P`
+#' - persona: `DIRECTORIO + SECUENCIA_P + ORDEN`
+#'
+#' @param diagnostico_con_tematica Objeto devuelto por
+#'   `diagnostico_caidas_con_tematica()`.
+#'
+#' @return Un `tibble` con una fila por nivel y las columnas:
+#'   `nivel`, `unidades_totales`, `caidas_existencia`, `caidas_lina`,
+#'   `caidas_campo`, `caidas_duplicado`, `caidas_tematica`,
+#'   `caidas_en_al_menos_un_criterio`, `caidas_en_todos_los_criterios`,
+#'   `pct_existencia`, `pct_logica`, `pct_campo`, `pct_duplicado`,
+#'   `pct_tematica`, `pct_al_menos_1` y `pct_todos`.
+#'
+#' @examples
+#' \dontrun{
+#' diag_con_tematica <- diagnostico_caidas_con_tematica(dfs)
+#' resumen_general_caidas_con_tematica(diag_con_tematica)
+#' }
+#'
+#' @export
+resumen_general_caidas_con_tematica <- function(diagnostico_con_tematica) {
+  if (!is.list(diagnostico_con_tematica)) {
+    stop("`diagnostico_con_tematica` debe ser una lista.")
+  }
+
+  niveles_req <- c("viviendas_eval", "hogares_eval", "personas_eval")
+  faltan_niveles <- setdiff(niveles_req, names(diagnostico_con_tematica))
+
+  if (length(faltan_niveles) > 0) {
+    stop(
+      "Faltan objetos requeridos en `diagnostico_con_tematica`: ",
+      paste(faltan_niveles, collapse = ", ")
+    )
+  }
+
+  dplyr::bind_rows(
+    .resumen_caidas_con_tematica_nivel(
+      df = .preparar_eval_resumen_caidas_con_tematica(
+        diagnostico_con_tematica = diagnostico_con_tematica,
+        nivel = "vivienda"
+      ),
+      nivel = "vivienda"
+    ),
+    .resumen_caidas_con_tematica_nivel(
+      df = .preparar_eval_resumen_caidas_con_tematica(
+        diagnostico_con_tematica = diagnostico_con_tematica,
+        nivel = "hogar"
+      ),
+      nivel = "hogar"
+    ),
+    .resumen_caidas_con_tematica_nivel(
+      df = .preparar_eval_resumen_caidas_con_tematica(
+        diagnostico_con_tematica = diagnostico_con_tematica,
+        nivel = "persona"
+      ),
+      nivel = "persona"
+    )
+  )
+}
+
+.preparar_eval_resumen_caidas_con_tematica <- function(diagnostico_con_tematica, nivel) {
+  obj_name <- switch(
+    nivel,
+    vivienda = "viviendas_eval",
+    hogar = "hogares_eval",
+    persona = "personas_eval",
+    stop("Nivel no soportado: ", nivel)
+  )
+
+  keys <- switch(
+    nivel,
+    vivienda = c("DIRECTORIO"),
+    hogar = c("DIRECTORIO", "SECUENCIA_P"),
+    persona = c("DIRECTORIO", "SECUENCIA_P", "ORDEN"),
+    stop("Nivel no soportado: ", nivel)
+  )
+
+  df <- diagnostico_con_tematica[[obj_name]]
+
+  if (!is.data.frame(df)) {
+    stop("`", obj_name, "` debe ser un data.frame o tibble.")
+  }
+
+  faltan_keys <- setdiff(keys, names(df))
+
+  if (length(faltan_keys) > 0) {
+    stop(
+      "Faltan llaves requeridas en `", obj_name, "`: ",
+      paste(faltan_keys, collapse = ", ")
+    )
+  }
+
+  if ("cae_duplicado" %in% names(df)) {
+    return(df)
+  }
+
+  if (!"reporte_final_caidas" %in% names(diagnostico_con_tematica)) {
+    stop(
+      "No existe `reporte_final_caidas` en `diagnostico_con_tematica`, ",
+      "necesario para derivar `cae_duplicado` a nivel ", nivel, "."
+    )
+  }
+
+  reporte_final <- diagnostico_con_tematica$reporte_final_caidas
+
+  if (!is.data.frame(reporte_final)) {
+    stop("`reporte_final_caidas` debe ser un data.frame o tibble.")
+  }
+
+  cols_dup_req <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN", "cae_duplicado")
+  faltan_dup_req <- setdiff(cols_dup_req, names(reporte_final))
+
+  if (length(faltan_dup_req) > 0) {
+    stop(
+      "Faltan columnas requeridas en `reporte_final_caidas` para derivar ",
+      "`cae_duplicado`: ",
+      paste(faltan_dup_req, collapse = ", ")
+    )
+  }
+
+  duplicados_nivel <- reporte_final %>%
+    dplyr::filter(.data$cae_duplicado) %>%
+    dplyr::distinct(dplyr::across(dplyr::all_of(keys))) %>%
+    dplyr::mutate(cae_duplicado = TRUE)
+
+  df %>%
+    dplyr::left_join(duplicados_nivel, by = keys) %>%
+    dplyr::mutate(
+      cae_duplicado = dplyr::coalesce(.data$cae_duplicado, FALSE)
+    )
+}
+
+.resumen_caidas_con_tematica_nivel <- function(df, nivel) {
+  vars_req <- c(
+    "cae_existencia",
+    "cae_lina",
+    "cae_campo",
+    "cae_duplicado",
+    "cae_tematica"
+  )
+
+  if (!is.data.frame(df)) {
+    stop("`", nivel, "_eval` debe ser un data.frame o tibble.")
+  }
+
+  faltan_vars <- setdiff(vars_req, names(df))
+
+  if (length(faltan_vars) > 0) {
+    stop(
+      "Faltan columnas requeridas en `", nivel, "_eval`: ",
+      paste(faltan_vars, collapse = ", ")
+    )
+  }
+
+  df %>%
+    dplyr::summarise(
+      nivel = nivel,
+      unidades_totales = dplyr::n(),
+      caidas_existencia = sum(.data$cae_existencia, na.rm = TRUE),
+      caidas_lina = sum(.data$cae_lina, na.rm = TRUE),
+      caidas_campo = sum(.data$cae_campo, na.rm = TRUE),
+      caidas_duplicado = sum(.data$cae_duplicado, na.rm = TRUE),
+      caidas_tematica = sum(.data$cae_tematica, na.rm = TRUE),
+      caidas_en_al_menos_un_criterio = sum(
+        .data$cae_existencia |
+          .data$cae_lina |
+          .data$cae_campo |
+          .data$cae_duplicado |
+          .data$cae_tematica,
+        na.rm = TRUE
+      ),
+      caidas_en_todos_los_criterios = sum(
+        .data$cae_existencia &
+          .data$cae_lina &
+          .data$cae_campo &
+          .data$cae_duplicado &
+          .data$cae_tematica,
+        na.rm = TRUE
+      ),
+      pct_existencia = round(100 * .data$caidas_existencia / .data$unidades_totales, 2),
+      pct_logica = round(100 * .data$caidas_lina / .data$unidades_totales, 2),
+      pct_campo = round(100 * .data$caidas_campo / .data$unidades_totales, 2),
+      pct_duplicado = round(100 * .data$caidas_duplicado / .data$unidades_totales, 2),
+      pct_tematica = round(100 * .data$caidas_tematica / .data$unidades_totales, 2),
+      pct_al_menos_1 = round(100 * .data$caidas_en_al_menos_un_criterio / .data$unidades_totales, 2),
+      pct_todos = round(100 * .data$caidas_en_todos_los_criterios / .data$unidades_totales, 2)
+    )
+}
+
 .reglas_tematica_default <- function(reglas_variables = NULL) {
   if (is.null(reglas_variables)) {
     return(
