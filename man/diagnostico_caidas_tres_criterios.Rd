@@ -9,6 +9,7 @@ diagnostico_caidas_tres_criterios(
   base_hogar_cap = "C",
   base_persona_cap = "E",
   edad_var = "NPCEP4",
+  criterio_duplicados = c("dane_sin_placeholder", "dane_completa", "actual"),
   exportar_excel = FALSE,
   archivo = "caidas_tres_criterios.xlsx"
 )
@@ -21,6 +22,10 @@ diagnostico_caidas_tres_criterios(
 \item{base_persona_cap}{Capitulo base del universo persona.}
 
 \item{edad_var}{Variable de edad a usar en los criterios que la requieren.}
+
+\item{criterio_duplicados}{Criterio de deteccion de duplicados de personas.
+Puede ser \code{"dane_sin_placeholder"}, \code{"dane_completa"} o \code{"actual"}.
+Por defecto usa \code{"dane_sin_placeholder"}.}
 
 \item{exportar_excel}{Si es \code{TRUE}, exporta un Excel con resumenes y detalle.}
 

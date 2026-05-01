@@ -12,6 +12,9 @@
 #' @param base_hogar_cap Capitulo base del universo hogar.
 #' @param base_persona_cap Capitulo base del universo persona.
 #' @param edad_var Variable de edad a usar en los criterios que la requieren.
+#' @param criterio_duplicados Criterio de deteccion de duplicados de personas.
+#'   Puede ser `"dane_sin_placeholder"`, `"dane_completa"` o `"actual"`.
+#'   Por defecto usa `"dane_sin_placeholder"`.
 #' @param exportar_excel Si es `TRUE`, exporta un Excel con resumenes y detalle.
 #' @param archivo Ruta del archivo Excel.
 #'
@@ -48,9 +51,12 @@ diagnostico_caidas_tres_criterios <- function(
     base_hogar_cap = "C",
     base_persona_cap = "E",
     edad_var = "NPCEP4",
+    criterio_duplicados = c("dane_sin_placeholder", "dane_completa", "actual"),
     exportar_excel = FALSE,
     archivo = "caidas_tres_criterios.xlsx"
 ) {
+
+  criterio_duplicados <- match.arg(criterio_duplicados)
 
   if (exportar_excel && !requireNamespace("openxlsx", quietly = TRUE)) {
     stop("Se requiere el paquete `openxlsx` para exportar a Excel.")
@@ -259,7 +265,8 @@ diagnostico_caidas_tres_criterios <- function(
 
   duplicados_personas_e <- diagnostico_duplicados_personas_e(
     dfs = dfs,
-    cap_persona = base_persona_cap
+    cap_persona = base_persona_cap,
+    criterio_duplicados = criterio_duplicados
   )
 
   reporte_final_caidas <- .construir_reporte_final_caidas_tres_criterios(
@@ -293,6 +300,7 @@ diagnostico_caidas_tres_criterios <- function(
     duplicados_personas_e = duplicados_personas_e$personas_duplicadas,
     resumen_duplicados_personas_e = duplicados_personas_e$resumen_duplicados,
     reporte_final_caidas = reporte_final_caidas,
+    criterio_duplicados = criterio_duplicados,
     diag_existencia = diag_existencia,
     diag_lina = diag_lina,
     diag_campo = diag_campo
@@ -1121,11 +1129,16 @@ diagnostico_caidas_tres_criterios <- function(
 #' Diagnosticar posibles duplicados de personas en el capitulo E
 #'
 #' Identifica posibles registros repetidos en el capitulo de personas usando
-#' simultaneamente nombre, fecha de nacimiento y numero de documento unificado
-#' segun el tipo de documento reportado en `NPCEP_5`.
+#' uno de tres criterios parametrizables: la regla historica del paquete
+#' (`"actual"`), la regla documental de DANE (`"dane_completa"`) y la misma
+#' regla documental excluyendo placeholders de nombre y documento
+#' (`"dane_sin_placeholder"`).
 #'
 #' @param dfs Lista nombrada de data frames por capitulo.
 #' @param cap_persona Capitulo de personas a evaluar. Por defecto `"E"`.
+#' @param criterio_duplicados Criterio de deteccion a usar. Puede ser
+#'   `"dane_sin_placeholder"`, `"dane_completa"` o `"actual"`. Por defecto usa
+#'   `"dane_sin_placeholder"`.
 #'
 #' @return Lista con:
 #' \describe{
@@ -1133,7 +1146,27 @@ diagnostico_caidas_tres_criterios <- function(
 #'   \item{personas_duplicadas}{Detalle micro de personas en grupos duplicados.}
 #' }
 #' @export
-diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
+diagnostico_duplicados_personas_e <- function(
+    dfs,
+    cap_persona = "E",
+    criterio_duplicados = c("dane_sin_placeholder", "dane_completa", "actual")
+) {
+  criterio_duplicados <- match.arg(criterio_duplicados)
+
+  .detectar_duplicados_personas_e(
+    dfs = dfs,
+    cap_persona = cap_persona,
+    criterio_duplicados = criterio_duplicados
+  )
+}
+
+.detectar_duplicados_personas_e <- function(
+    dfs,
+    cap_persona = "E",
+    criterio_duplicados = c("dane_sin_placeholder", "dane_completa", "actual")
+) {
+  criterio_duplicados <- match.arg(criterio_duplicados)
+
   if (!is.list(dfs) || length(dfs) == 0) {
     stop("`dfs` debe ser una lista nombrada de data frames.")
   }
@@ -1168,9 +1201,13 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
     )
   }
 
+  if (!"UUID" %in% names(E)) {
+    E$UUID <- NA_character_
+  }
+
   meta_vars <- intersect(c("UUID", "SEGMENTO", "CLASE"), names(E))
 
-  personas_eval <- E %>%
+  personas_base <- E %>%
     dplyr::distinct(
       .data$DIRECTORIO,
       .data$SECUENCIA_P,
@@ -1180,88 +1217,256 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
     dplyr::mutate(
       nombre_normalizado = .normalizar_texto_duplicado(.data$NPCEP2),
       fecha_nac_normalizada = .normalizar_texto_duplicado(.data$NPCEP3A),
-      tipo_documento = .normalizar_texto_duplicado(.data$NPCEP_5),
-      numero_documento_unificado = dplyr::case_when(
-        .data$tipo_documento == "1" ~ .normalizar_texto_duplicado(.data$NPCEP_5A),
-        .data$tipo_documento == "2" ~ .normalizar_texto_duplicado(.data$NPCEP_5B),
-        .data$tipo_documento == "3" ~ .normalizar_texto_duplicado(.data$NPCEP_5C),
-        .data$tipo_documento == "4" ~ .normalizar_texto_duplicado(.data$NPCEP_5D),
+      tipo_documento_normalizado = .normalizar_texto_duplicado(.data$NPCEP_5),
+      numero_documento_npcep_5a = .normalizar_texto_duplicado(.data$NPCEP_5A),
+      numero_documento_npcep_5b = .normalizar_texto_duplicado(.data$NPCEP_5B),
+      numero_documento_npcep_5c = .normalizar_texto_duplicado(.data$NPCEP_5C),
+      numero_documento_npcep_5d = .normalizar_texto_duplicado(.data$NPCEP_5D),
+      numero_documento_normalizado = dplyr::case_when(
+        .data$tipo_documento_normalizado == "1" ~ .data$numero_documento_npcep_5a,
+        .data$tipo_documento_normalizado == "2" ~ .data$numero_documento_npcep_5b,
+        .data$tipo_documento_normalizado == "3" ~ .data$numero_documento_npcep_5c,
+        .data$tipo_documento_normalizado == "4" ~ .data$numero_documento_npcep_5d,
         TRUE ~ NA_character_
       ),
-      identificador_completo =
-        !is.na(.data$nombre_normalizado) &
-        !is.na(.data$fecha_nac_normalizada) &
-        !is.na(.data$numero_documento_unificado)
+      numero_documento_unificado = .data$numero_documento_normalizado,
+      tipo_documento = .data$tipo_documento_normalizado,
+      uuid_valido = !is.na(.data$UUID) &
+        nzchar(trimws(as.character(.data$UUID)))
     )
 
-  grupos_duplicados <- personas_eval %>%
-    dplyr::filter(.data$identificador_completo) %>%
-    dplyr::group_by(
-      .data$nombre_normalizado,
-      .data$fecha_nac_normalizada,
-      .data$numero_documento_unificado
-    ) %>%
-    dplyr::summarise(
-      n_repetidos = dplyr::n(),
-      .groups = "drop"
-    ) %>%
-    dplyr::filter(.data$n_repetidos > 1) %>%
-    dplyr::arrange(
-      dplyr::desc(.data$n_repetidos),
-      .data$nombre_normalizado,
-      .data$fecha_nac_normalizada,
-      .data$numero_documento_unificado
-    ) %>%
-    dplyr::mutate(grupo_duplicado = paste0("dup_", dplyr::row_number()))
-
-  personas_duplicadas <- personas_eval %>%
-    dplyr::inner_join(
-      grupos_duplicados,
-      by = c(
-        "nombre_normalizado",
-        "fecha_nac_normalizada",
-        "numero_documento_unificado"
+  if (identical(criterio_duplicados, "actual")) {
+    personas_eval <- personas_base %>%
+      dplyr::mutate(
+        identificador_completo =
+          !is.na(.data$nombre_normalizado) &
+          !is.na(.data$fecha_nac_normalizada) &
+          !is.na(.data$numero_documento_normalizado)
       )
-    ) %>%
-    dplyr::mutate(
-      observacion_duplicado = paste0(
-        "Posible duplicado en ", cap_persona,
-        ": mismo nombre, fecha de nacimiento y documento. ",
-        "NPCEP2=", .texto_revision_valor(.data$NPCEP2),
-        "; NPCEP3A=", .texto_revision_valor(.data$NPCEP3A),
-        "; NPCEP_5=", .texto_revision_valor(.data$NPCEP_5),
-        "; documento=", .texto_revision_valor(.data$numero_documento_unificado),
-        "; apariciones=", .data$n_repetidos,
-        "."
+
+    grupos_duplicados <- personas_eval %>%
+      dplyr::filter(.data$identificador_completo) %>%
+      dplyr::group_by(
+        .data$nombre_normalizado,
+        .data$fecha_nac_normalizada,
+        .data$numero_documento_normalizado
+      ) %>%
+      dplyr::summarise(
+        n_en_grupo_duplicado = dplyr::n(),
+        .groups = "drop"
+      ) %>%
+      dplyr::filter(.data$n_en_grupo_duplicado > 1) %>%
+      dplyr::arrange(
+        dplyr::desc(.data$n_en_grupo_duplicado),
+        .data$nombre_normalizado,
+        .data$fecha_nac_normalizada,
+        .data$numero_documento_normalizado
+      ) %>%
+      dplyr::mutate(
+        grupo_duplicado = paste0("dup_", dplyr::row_number()),
+        clave_duplicado = paste(
+          .data$nombre_normalizado,
+          .data$fecha_nac_normalizada,
+          .data$numero_documento_normalizado,
+          sep = "||"
+        ),
+        criterio_duplicados = criterio_duplicados
       )
-    ) %>%
-    dplyr::arrange(
-      dplyr::desc(.data$n_repetidos),
-      .data$grupo_duplicado,
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN
-    ) %>%
-    dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
-      dplyr::any_of(meta_vars),
-      .data$NPCEP2,
-      .data$NPCEP3A,
-      .data$NPCEP_5,
-      .data$numero_documento_unificado,
-      .data$grupo_duplicado,
-      .data$n_repetidos,
-      .data$observacion_duplicado
-    )
 
-  personas_totales_e <- personas_eval %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
-    nrow()
+    personas_duplicadas <- personas_eval %>%
+      dplyr::inner_join(
+        grupos_duplicados,
+        by = c(
+          "nombre_normalizado",
+          "fecha_nac_normalizada",
+          "numero_documento_normalizado"
+        )
+      ) %>%
+      dplyr::mutate(
+        n_repetidos = .data$n_en_grupo_duplicado,
+        observacion_duplicado = paste0(
+          "Posible duplicado en ", cap_persona,
+          ": mismo nombre, fecha de nacimiento y documento. ",
+          "NPCEP2=", .texto_revision_valor(.data$NPCEP2),
+          "; NPCEP3A=", .texto_revision_valor(.data$NPCEP3A),
+          "; NPCEP_5=", .texto_revision_valor(.data$NPCEP_5),
+          "; documento=", .texto_revision_valor(.data$numero_documento_normalizado),
+          "; apariciones=", .data$n_en_grupo_duplicado,
+          "."
+        )
+      ) %>%
+      dplyr::arrange(
+        dplyr::desc(.data$n_en_grupo_duplicado),
+        .data$grupo_duplicado,
+        .data$DIRECTORIO,
+        .data$SECUENCIA_P,
+        .data$ORDEN
+      ) %>%
+      dplyr::select(
+        .data$DIRECTORIO,
+        .data$SECUENCIA_P,
+        .data$ORDEN,
+        dplyr::any_of(meta_vars),
+        .data$NPCEP2,
+        .data$NPCEP3A,
+        .data$NPCEP_5,
+        .data$criterio_duplicados,
+        .data$clave_duplicado,
+        .data$n_en_grupo_duplicado,
+        .data$nombre_normalizado,
+        .data$tipo_documento_normalizado,
+        .data$fecha_nac_normalizada,
+        .data$numero_documento_normalizado,
+        .data$numero_documento_unificado,
+        .data$grupo_duplicado,
+        .data$n_repetidos,
+        .data$observacion_duplicado
+      )
 
-  personas_con_identificador_completo <- personas_eval %>%
-    dplyr::filter(.data$identificador_completo) %>%
+    personas_con_identificador_completo <- personas_eval %>%
+      dplyr::filter(.data$identificador_completo) %>%
+      dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+      nrow()
+  } else {
+    personas_eval <- personas_base %>%
+      dplyr::mutate(
+        identificador_completo =
+          .data$uuid_valido &
+          !is.na(.data$nombre_normalizado) &
+          !is.na(.data$tipo_documento_normalizado)
+      )
+
+    docs_apilados <- .apilar_documentos_duplicados_personas(
+      personas_base = personas_base,
+      meta_vars = meta_vars
+    ) %>%
+      dplyr::filter(
+        .data$uuid_valido,
+        !is.na(.data$nombre_normalizado),
+        !is.na(.data$tipo_documento_normalizado),
+        !is.na(.data$numero_documento_normalizado)
+      )
+
+    if (identical(criterio_duplicados, "dane_sin_placeholder")) {
+      docs_apilados <- docs_apilados %>%
+        dplyr::filter(
+          !.es_nombre_generico_duplicado(.data$nombre_normalizado),
+          !.es_documento_placeholder_duplicado(.data$numero_documento_normalizado)
+        )
+    }
+
+    docs_apilados <- docs_apilados %>%
+      dplyr::mutate(
+        clave_duplicado = paste(
+          .data$nombre_normalizado,
+          .data$tipo_documento_normalizado,
+          .data$numero_documento_normalizado,
+          sep = "||"
+        ),
+        criterio_duplicados = criterio_duplicados
+      )
+
+    grupos_duplicados <- docs_apilados %>%
+      dplyr::group_by(
+        .data$nombre_normalizado,
+        .data$tipo_documento_normalizado,
+        .data$numero_documento_normalizado,
+        .data$clave_duplicado,
+        .data$criterio_duplicados
+      ) %>%
+      dplyr::summarise(
+        n_en_grupo_duplicado = dplyr::n(),
+        .groups = "drop"
+      ) %>%
+      dplyr::filter(.data$n_en_grupo_duplicado > 1) %>%
+      dplyr::arrange(
+        dplyr::desc(.data$n_en_grupo_duplicado),
+        .data$nombre_normalizado,
+        .data$tipo_documento_normalizado,
+        .data$numero_documento_normalizado
+      ) %>%
+      dplyr::mutate(grupo_duplicado = paste0("dup_", dplyr::row_number()))
+
+    personas_duplicadas <- docs_apilados %>%
+      dplyr::inner_join(
+        grupos_duplicados,
+        by = c(
+          "nombre_normalizado",
+          "tipo_documento_normalizado",
+          "numero_documento_normalizado",
+          "clave_duplicado",
+          "criterio_duplicados"
+        )
+      ) %>%
+      dplyr::group_by(
+        .data$DIRECTORIO,
+        .data$SECUENCIA_P,
+        .data$ORDEN,
+        dplyr::across(dplyr::any_of(meta_vars)),
+        .data$NPCEP2,
+        .data$NPCEP3A,
+        .data$NPCEP_5,
+        .data$criterio_duplicados,
+        .data$nombre_normalizado,
+        .data$tipo_documento_normalizado,
+        .data$fecha_nac_normalizada
+      ) %>%
+      dplyr::summarise(
+        clave_duplicado = .collapse_unique_nonempty(.data$clave_duplicado),
+        n_en_grupo_duplicado = max(.data$n_en_grupo_duplicado, na.rm = TRUE),
+        numero_documento_normalizado = .collapse_unique_nonempty(.data$numero_documento_normalizado),
+        numero_documento_unificado = .collapse_unique_nonempty(.data$numero_documento_normalizado),
+        grupo_duplicado = .collapse_unique_nonempty(.data$grupo_duplicado),
+        fuentes_documento_duplicado = .collapse_unique_nonempty(.data$fuente_documento_duplicado),
+        .groups = "drop"
+      ) %>%
+      dplyr::mutate(
+        n_repetidos = .data$n_en_grupo_duplicado,
+        observacion_duplicado = paste0(
+          "Posible duplicado en ", cap_persona,
+          ": mismo nombre, tipo de documento y documento. ",
+          "NPCEP2=", .texto_revision_valor(.data$NPCEP2),
+          "; NPCEP_5=", .texto_revision_valor(.data$NPCEP_5),
+          "; documento=", .texto_revision_valor(.data$numero_documento_normalizado),
+          "; apariciones=", .data$n_en_grupo_duplicado,
+          "."
+        )
+      ) %>%
+      dplyr::arrange(
+        dplyr::desc(.data$n_en_grupo_duplicado),
+        .data$grupo_duplicado,
+        .data$DIRECTORIO,
+        .data$SECUENCIA_P,
+        .data$ORDEN
+      ) %>%
+      dplyr::select(
+        .data$DIRECTORIO,
+        .data$SECUENCIA_P,
+        .data$ORDEN,
+        dplyr::any_of(meta_vars),
+        .data$NPCEP2,
+        .data$NPCEP3A,
+        .data$NPCEP_5,
+        .data$criterio_duplicados,
+        .data$clave_duplicado,
+        .data$n_en_grupo_duplicado,
+        .data$nombre_normalizado,
+        .data$tipo_documento_normalizado,
+        .data$fecha_nac_normalizada,
+        .data$numero_documento_normalizado,
+        .data$numero_documento_unificado,
+        .data$grupo_duplicado,
+        .data$n_repetidos,
+        dplyr::any_of("fuentes_documento_duplicado"),
+        .data$observacion_duplicado
+      )
+
+    personas_con_identificador_completo <- docs_apilados %>%
+      dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+      nrow()
+  }
+
+  personas_totales_e <- personas_base %>%
     dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
     nrow()
 
@@ -1269,6 +1474,7 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
   registros_en_grupos_duplicados <- personas_duplicadas %>% nrow()
 
   resumen_duplicados <- tibble::tibble(
+    criterio_duplicados = criterio_duplicados,
     personas_totales_e = personas_totales_e,
     personas_con_identificador_completo = personas_con_identificador_completo,
     grupos_duplicados = grupos_duplicados_n,
@@ -1292,6 +1498,63 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
   x <- stringr::str_replace_all(x, "\\s+", " ")
   x[x == "" | is.na(x)] <- NA_character_
   x
+}
+
+.catalogo_documentos_placeholder_duplicados <- function() {
+  c(
+    "99", "999", "9999", "99999", "999999", "9999999",
+    "99999999", "999999999", "9999999999",
+    "0", "00", "000", "0000", "00000", "000000",
+    "0000000", "00000000", "000000000", "0000000000",
+    "1111111111", "1234567890"
+  )
+}
+
+.es_documento_placeholder_duplicado <- function(x) {
+  x <- .normalizar_texto_duplicado(x)
+  x %in% .catalogo_documentos_placeholder_duplicados() |
+    stringr::str_detect(x, "^0+$") |
+    stringr::str_detect(x, "^9+$")
+}
+
+.es_nombre_generico_duplicado <- function(x) {
+  x <- .normalizar_texto_duplicado(x)
+  x %in% c("NO INFORMA", "SIN INFORMACION") |
+    stringr::str_detect(x, "^NO INFORMA")
+}
+
+.apilar_documentos_duplicados_personas <- function(personas_base, meta_vars = character()) {
+  if (!is.data.frame(personas_base) || nrow(personas_base) == 0) {
+    return(tibble::tibble())
+  }
+
+  docs_map <- c(
+    NPCEP_5A = "numero_documento_npcep_5a",
+    NPCEP_5B = "numero_documento_npcep_5b",
+    NPCEP_5C = "numero_documento_npcep_5c",
+    NPCEP_5D = "numero_documento_npcep_5d"
+  )
+
+  dplyr::bind_rows(lapply(names(docs_map), function(var_origen) {
+    col_norm <- docs_map[[var_origen]]
+
+    personas_base %>%
+      dplyr::transmute(
+        .data$DIRECTORIO,
+        .data$SECUENCIA_P,
+        .data$ORDEN,
+        dplyr::across(dplyr::any_of(meta_vars)),
+        .data$NPCEP2,
+        .data$NPCEP3A,
+        .data$NPCEP_5,
+        .data$uuid_valido,
+        .data$nombre_normalizado,
+        .data$fecha_nac_normalizada,
+        .data$tipo_documento_normalizado,
+        numero_documento_normalizado = .data[[col_norm]],
+        fuente_documento_duplicado = var_origen
+      )
+  }))
 }
 
 .construir_reporte_final_caidas_tres_criterios <- function(personas_eval,
@@ -1337,19 +1600,41 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
       dplyr::any_of(c("UUID", "SEGMENTO", "CLASE")),
       .data$NPCEP2,
       .data$NPCEP3A,
+      dplyr::any_of(c(
+        "criterio_duplicados",
+        "clave_duplicado",
+        "n_en_grupo_duplicado",
+        "nombre_normalizado",
+        "tipo_documento_normalizado",
+        "fecha_nac_normalizada",
+        "numero_documento_normalizado"
+      )),
       .data$numero_documento_unificado,
       .data$observacion_duplicado
     ) %>%
     dplyr::mutate(
+      criterio_duplicados = dplyr::coalesce(.data$criterio_duplicados, "actual"),
       cae_duplicado = TRUE,
       razon_duplicado = "Posible duplicado en personas",
-      variable_duplicado = "nombre_fecha_documento",
-      valor_duplicado = paste0(
-        .texto_revision_valor(.data$NPCEP2),
-        " | ",
-        .texto_revision_valor(.data$NPCEP3A),
-        " | ",
-        .texto_revision_valor(.data$numero_documento_unificado)
+      variable_duplicado = dplyr::case_when(
+        .data$criterio_duplicados == "actual" ~ "nombre_fecha_documento",
+        TRUE ~ "nombre_tipo_documento"
+      ),
+      valor_duplicado = dplyr::case_when(
+        .data$criterio_duplicados == "actual" ~ paste0(
+          .texto_revision_valor(.data$NPCEP2),
+          " | ",
+          .texto_revision_valor(.data$NPCEP3A),
+          " | ",
+          .texto_revision_valor(.data$numero_documento_unificado)
+        ),
+        TRUE ~ paste0(
+          .texto_revision_valor(.data$NPCEP2),
+          " | ",
+          .texto_revision_valor(.data$tipo_documento_normalizado),
+          " | ",
+          .texto_revision_valor(.data$numero_documento_normalizado)
+        )
       )
     ) %>%
     dplyr::select(
@@ -1357,6 +1642,15 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
       .data$SECUENCIA_P,
       .data$ORDEN,
       dplyr::any_of(c("UUID", "SEGMENTO", "CLASE")),
+      .data$criterio_duplicados,
+      dplyr::any_of(c(
+        "clave_duplicado",
+        "n_en_grupo_duplicado",
+        "nombre_normalizado",
+        "tipo_documento_normalizado",
+        "fecha_nac_normalizada",
+        "numero_documento_normalizado"
+      )),
       .data$cae_duplicado,
       .data$razon_duplicado,
       .data$variable_duplicado,
@@ -1389,6 +1683,12 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
     "edad_rev",
     "UUID_rev", "SEGMENTO_rev", "CLASE_rev",
     "UUID_dup", "SEGMENTO_dup", "CLASE_dup",
+    "criterio_duplicados",
+    "clave_duplicado",
+    "nombre_normalizado",
+    "tipo_documento_normalizado",
+    "fecha_nac_normalizada",
+    "numero_documento_normalizado",
     "razon_duplicado", "variable_duplicado", "valor_duplicado",
     "observacion_duplicado", "observacion_resumen",
     "criterios_caida", "criterio_revision_principal",
@@ -1411,6 +1711,10 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
     }
   }
 
+  if (!"n_en_grupo_duplicado" %in% names(out)) {
+    out$n_en_grupo_duplicado <- NA_integer_
+  }
+
   out %>%
     dplyr::mutate(
       edad = dplyr::coalesce(.data$edad, .data$edad_rev),
@@ -1421,6 +1725,13 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
       cae_lina = dplyr::coalesce(.data$cae_lina, FALSE),
       cae_campo = dplyr::coalesce(.data$cae_campo, FALSE),
       cae_duplicado = dplyr::coalesce(.data$cae_duplicado, FALSE),
+      criterio_duplicados = dplyr::coalesce(.data$criterio_duplicados, NA_character_),
+      clave_duplicado = dplyr::coalesce(.data$clave_duplicado, NA_character_),
+      n_en_grupo_duplicado = dplyr::coalesce(.data$n_en_grupo_duplicado, 0L),
+      nombre_normalizado = dplyr::coalesce(.data$nombre_normalizado, NA_character_),
+      tipo_documento_normalizado = dplyr::coalesce(.data$tipo_documento_normalizado, NA_character_),
+      fecha_nac_normalizada = dplyr::coalesce(.data$fecha_nac_normalizada, NA_character_),
+      numero_documento_normalizado = dplyr::coalesce(.data$numero_documento_normalizado, NA_character_),
       n_criterios_reporte =
         as.integer(.data$cae_existencia) +
         as.integer(.data$cae_lina) +
@@ -1487,6 +1798,13 @@ diagnostico_duplicados_personas_e <- function(dfs, cap_persona = "E") {
       .data$cae_lina,
       .data$cae_campo,
       .data$cae_duplicado,
+      .data$criterio_duplicados,
+      .data$clave_duplicado,
+      .data$n_en_grupo_duplicado,
+      .data$nombre_normalizado,
+      .data$tipo_documento_normalizado,
+      .data$fecha_nac_normalizada,
+      .data$numero_documento_normalizado,
       .data$n_criterios_reporte,
       .data$criterios_reporte,
       .data$criterio_principal_reporte,

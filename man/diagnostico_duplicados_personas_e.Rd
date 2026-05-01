@@ -4,12 +4,20 @@
 \alias{diagnostico_duplicados_personas_e}
 \title{Diagnosticar posibles duplicados de personas en el capitulo E}
 \usage{
-diagnostico_duplicados_personas_e(dfs, cap_persona = "E")
+diagnostico_duplicados_personas_e(
+  dfs,
+  cap_persona = "E",
+  criterio_duplicados = c("dane_sin_placeholder", "dane_completa", "actual")
+)
 }
 \arguments{
 \item{dfs}{Lista nombrada de data frames por capitulo.}
 
 \item{cap_persona}{Capitulo de personas a evaluar. Por defecto \code{"E"}.}
+
+\item{criterio_duplicados}{Criterio de deteccion a usar. Puede ser
+\code{"dane_sin_placeholder"}, \code{"dane_completa"} o \code{"actual"}. Por defecto usa
+\code{"dane_sin_placeholder"}.}
 }
 \value{
 Lista con:
@@ -20,6 +28,8 @@ Lista con:
 }
 \description{
 Identifica posibles registros repetidos en el capitulo de personas usando
-simultaneamente nombre, fecha de nacimiento y numero de documento unificado
-segun el tipo de documento reportado en \code{NPCEP_5}.
+uno de tres criterios parametrizables: la regla historica del paquete
+(\code{"actual"}), la regla documental de DANE (\code{"dane_completa"}) y la misma
+regla documental excluyendo placeholders de nombre y documento
+(\code{"dane_sin_placeholder"}).
 }

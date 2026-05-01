@@ -3,7 +3,8 @@
 #' Lee un archivo Excel de Muestras con listados de valores faltantes en
 #' variables clave, identifica el nivel analítico afectado (vivienda, hogar o
 #' persona) y cruza esos casos contra la salida de
-#' `diagnostico_caidas_tres_criterios()`.
+#' `diagnostico_caidas_tres_criterios()` o, si se solicita, contra
+#' `diagnostico_caidas_con_tematica()`.
 #'
 #' La comparación oficial se realiza contra `reporte_final_caidas`, que es el
 #' consolidado final de encuestas caídas de la metodología y que además incluye
@@ -46,7 +47,9 @@
 #'
 #' @param archivo_muestras Ruta del archivo Excel enviado por Muestras.
 #' @param diag_tres Resultado de `diagnostico_caidas_tres_criterios()`. Si es
-#'   `NULL`, se calcula internamente a partir de `dfs`.
+#'   `NULL`, se calcula internamente a partir de `dfs` cuando
+#'   `reporte_base = "tres_criterios"` o se toma desde
+#'   `diag_con_tematica$diag_tres` cuando `reporte_base = "con_tematica"`.
 #' @param dfs Lista nombrada de capítulos. Se usa solo cuando `diag_tres` es
 #'   `NULL` o cuando se requiere apoyar el mapeo de llaves faltantes.
 #' @param base_hogar_cap Capítulo base del universo hogar cuando `diag_tres` es
@@ -88,10 +91,13 @@
 #' @examples
 #' \dontrun{
 #' diag_tres <- diagnostico_caidas_tres_criterios(dfs)
+#' diag_con_tematica <- diagnostico_caidas_con_tematica(dfs)
 #'
 #' cruce <- diagnostico_muestras_vs_tres_criterios(
 #'   archivo_muestras = "tablas_na.xlsx",
 #'   diag_tres = diag_tres,
+#'   diag_con_tematica = diag_con_tematica,
+#'   reporte_base = "con_tematica",
 #'   dfs = dfs,
 #'   ruta_exportacion = "cruce_muestras_vs_tres_criterios.xlsx"
 #' )
@@ -100,10 +106,18 @@
 #' cruce$no_detectadas
 #' }
 #'
+#' @param diag_con_tematica Resultado de
+#'   `diagnostico_caidas_con_tematica()`. Es obligatorio cuando
+#'   `reporte_base = "con_tematica"`.
+#' @param reporte_base Universo de comparacion oficial para
+#'   `reporte_final_caidas`. Puede ser `"con_tematica"` o `"tres_criterios"`.
+#'   Por defecto usa `"con_tematica"`.
 #' @export
 diagnostico_muestras_vs_tres_criterios <- function(
     archivo_muestras,
     diag_tres = NULL,
+    diag_con_tematica = NULL,
+    reporte_base = c("con_tematica", "tres_criterios"),
     dfs = NULL,
     base_hogar_cap = "C",
     base_persona_cap = "E",
@@ -122,6 +136,29 @@ diagnostico_muestras_vs_tres_criterios <- function(
 
   if (!file.exists(archivo_muestras)) {
     stop("No existe `archivo_muestras`: ", archivo_muestras)
+  }
+
+  reporte_base <- match.arg(reporte_base)
+
+  if (identical(reporte_base, "con_tematica")) {
+    if (!is.list(diag_con_tematica) ||
+        !all(c(
+          "viviendas_eval",
+          "hogares_eval",
+          "personas_eval",
+          "reporte_final_caidas",
+          "diag_tres"
+        ) %in% names(diag_con_tematica))) {
+      stop(
+        "Cuando `reporte_base = \"con_tematica\"`, debe suministrar ",
+        "`diag_con_tematica` como una lista producida por ",
+        "`diagnostico_caidas_con_tematica()`."
+      )
+    }
+  }
+
+  if (is.null(diag_tres) && identical(reporte_base, "con_tematica")) {
+    diag_tres <- diag_con_tematica$diag_tres
   }
 
   if (is.null(diag_tres)) {
@@ -149,6 +186,12 @@ diagnostico_muestras_vs_tres_criterios <- function(
       "`diag_tres` debe ser una lista producida por ",
       "`diagnostico_caidas_tres_criterios()` con `reporte_final_caidas`."
     )
+  }
+
+  reporte_referencia <- if (identical(reporte_base, "con_tematica")) {
+    diag_con_tematica$reporte_final_caidas
+  } else {
+    diag_tres$reporte_final_caidas
   }
 
   hojas <- readxl::excel_sheets(archivo_muestras)
@@ -194,7 +237,7 @@ diagnostico_muestras_vs_tres_criterios <- function(
   }
 
   # ---- detección final oficial: reporte_final_caidas ----
-  reporte_persona <- diag_tres$reporte_final_caidas %>%
+  reporte_persona <- reporte_referencia %>%
     normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN"))
 
   if (!"observacion_final" %in% names(reporte_persona)) {
@@ -279,7 +322,7 @@ diagnostico_muestras_vs_tres_criterios <- function(
 
   directorios_reporte_final <- unique(
     stats::na.omit(
-      .normalizar_id_muestras(diag_tres$reporte_final_caidas$DIRECTORIO)
+      .normalizar_id_muestras(reporte_referencia$DIRECTORIO)
     )
   )
   directorios_base_actual <- .extraer_directorios_base_actual(dfs)

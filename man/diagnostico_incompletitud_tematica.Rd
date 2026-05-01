@@ -33,6 +33,10 @@ las columnas \code{capitulo}, \code{nivel}, \code{variable} y \code{descripcion}
 \code{NULL}.}
 
 \item{edad_var}{Variable de edad si \code{diag_tres} es \code{NULL}.}
+
+\item{criterio_duplicados}{Criterio de deteccion de duplicados que se usa
+cuando la funcion necesita construir \code{diag_tres}. Puede ser
+\code{"dane_sin_placeholder"}, \code{"dane_completa"} o \code{"actual"}.}
 }
 \value{
 Una lista con:

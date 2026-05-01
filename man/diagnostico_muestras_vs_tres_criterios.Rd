@@ -7,6 +7,8 @@
 diagnostico_muestras_vs_tres_criterios(
   archivo_muestras,
   diag_tres = NULL,
+  diag_con_tematica = NULL,
+  reporte_base = c("con_tematica", "tres_criterios"),
   dfs = NULL,
   base_hogar_cap = "C",
   base_persona_cap = "E",
@@ -20,7 +22,17 @@ diagnostico_muestras_vs_tres_criterios(
 \item{archivo_muestras}{Ruta del archivo Excel enviado por Muestras.}
 
 \item{diag_tres}{Resultado de \code{diagnostico_caidas_tres_criterios()}. Si es
-\code{NULL}, se calcula internamente a partir de \code{dfs}.}
+\code{NULL}, se calcula internamente a partir de \code{dfs} cuando
+\code{reporte_base = "tres_criterios"} o se toma desde
+\code{diag_con_tematica$diag_tres} cuando \code{reporte_base = "con_tematica"}.}
+
+\item{diag_con_tematica}{Resultado de
+\code{diagnostico_caidas_con_tematica()}. Es obligatorio cuando
+\code{reporte_base = "con_tematica"}.}
+
+\item{reporte_base}{Universo de comparacion oficial para
+\code{reporte_final_caidas}. Puede ser \code{"con_tematica"} o \code{"tres_criterios"}.
+Por defecto usa \code{"con_tematica"}.}
 
 \item{dfs}{Lista nombrada de capítulos. Se usa solo cuando \code{diag_tres} es
 \code{NULL} o cuando se requiere apoyar el mapeo de llaves faltantes.}
@@ -71,7 +83,8 @@ cuando \code{incluir_diag_tres = TRUE}.}
 Lee un archivo Excel de Muestras con listados de valores faltantes en
 variables clave, identifica el nivel analítico afectado (vivienda, hogar o
 persona) y cruza esos casos contra la salida de
-\code{diagnostico_caidas_tres_criterios()}.
+\code{diagnostico_caidas_tres_criterios()} o, si se solicita, contra
+\code{diagnostico_caidas_con_tematica()}.
 }
 \details{
 La comparación oficial se realiza contra \code{reporte_final_caidas}, que es el
@@ -116,10 +129,13 @@ final para facilitar trazabilidad. Ninguno depende de los valores de
 \examples{
 \dontrun{
 diag_tres <- diagnostico_caidas_tres_criterios(dfs)
+diag_con_tematica <- diagnostico_caidas_con_tematica(dfs)
 
 cruce <- diagnostico_muestras_vs_tres_criterios(
   archivo_muestras = "tablas_na.xlsx",
   diag_tres = diag_tres,
+  diag_con_tematica = diag_con_tematica,
+  reporte_base = "con_tematica",
   dfs = dfs,
   ruta_exportacion = "cruce_muestras_vs_tres_criterios.xlsx"
 )

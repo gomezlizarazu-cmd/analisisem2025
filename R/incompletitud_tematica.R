@@ -27,6 +27,9 @@
 #' @param base_persona_cap Capitulo base del universo persona si `diag_tres` es
 #'   `NULL`.
 #' @param edad_var Variable de edad si `diag_tres` es `NULL`.
+#' @param criterio_duplicados Criterio de deteccion de duplicados que se usa
+#'   cuando la funcion necesita construir `diag_tres`. Puede ser
+#'   `"dane_sin_placeholder"`, `"dane_completa"` o `"actual"`.
 #'
 #' @return Una lista con:
 #' \describe{
@@ -206,16 +209,26 @@ diagnostico_caidas_con_tematica <- function(
     ruta_exportacion = NULL,
     base_hogar_cap = "C",
     base_persona_cap = "E",
-    edad_var = "NPCEP4"
+    edad_var = "NPCEP4",
+    criterio_duplicados = c("dane_sin_placeholder", "dane_completa", "actual")
 ) {
+  criterio_duplicados <- match.arg(criterio_duplicados)
+
   if (is.null(diag_tres)) {
     diag_tres <- diagnostico_caidas_tres_criterios(
       dfs = dfs,
       base_hogar_cap = base_hogar_cap,
       base_persona_cap = base_persona_cap,
       edad_var = edad_var,
+      criterio_duplicados = criterio_duplicados,
       exportar_excel = FALSE
     )
+  } else if (is.list(diag_tres) && "criterio_duplicados" %in% names(diag_tres)) {
+    criterio_duplicados <- match.arg(diag_tres$criterio_duplicados[[1]], c(
+      "dane_sin_placeholder",
+      "dane_completa",
+      "actual"
+    ))
   }
 
   diag_tematica <- diagnostico_incompletitud_tematica(
@@ -265,7 +278,8 @@ diagnostico_caidas_con_tematica <- function(
     personas_eval = personas_eval,
     reporte_final_caidas = reporte_final_caidas,
     diag_tres = diag_tres,
-    diag_tematica = diag_tematica
+    diag_tematica = diag_tematica,
+    criterio_duplicados = criterio_duplicados
   )
 
   if (!is.null(ruta_exportacion)) {

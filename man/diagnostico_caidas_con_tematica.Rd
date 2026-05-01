@@ -11,7 +11,8 @@ diagnostico_caidas_con_tematica(
   ruta_exportacion = NULL,
   base_hogar_cap = "C",
   base_persona_cap = "E",
-  edad_var = "NPCEP4"
+  edad_var = "NPCEP4",
+  criterio_duplicados = c("dane_sin_placeholder", "dane_completa", "actual")
 )
 }
 \arguments{
