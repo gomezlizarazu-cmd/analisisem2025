@@ -119,9 +119,9 @@ construir_base_em_completa <- function(dfs, reporte_final_caidas) {
   })
 
   resumen_em_completa <- tibble::tibble(
-    capitulo = names(dfs),
-    registros_antes = vapply(dfs, nrow, integer(1)),
-    registros_despues = vapply(dfs_em_completa, nrow, integer(1))
+    capitulo = nombres_dfs,
+    registros_antes = unname(vapply(dfs, nrow, integer(1))),
+    registros_despues = unname(vapply(dfs_em_completa, nrow, integer(1)))
   ) %>%
     dplyr::mutate(
       registros_excluidos = .data$registros_antes - .data$registros_despues

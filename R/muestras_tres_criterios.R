@@ -331,12 +331,12 @@ diagnostico_muestras_vs_tres_criterios <- function(
   viviendas_eval <- diag_tres$viviendas_eval %>%
     normalize_keys("DIRECTORIO") %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$cae_existencia,
-      .data$cae_lina,
-      .data$cae_campo,
-      .data$n_criterios_caida,
-      .data$criterios_caida
+      DIRECTORIO,
+      cae_existencia,
+      cae_lina,
+      cae_campo,
+      n_criterios_caida,
+      criterios_caida
     ) %>%
     dplyr::mutate(
       detectada_intermedia = .data$n_criterios_caida > 0
@@ -345,13 +345,13 @@ diagnostico_muestras_vs_tres_criterios <- function(
   hogares_eval <- diag_tres$hogares_eval %>%
     normalize_keys(c("DIRECTORIO", "SECUENCIA_P")) %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$cae_existencia,
-      .data$cae_lina,
-      .data$cae_campo,
-      .data$n_criterios_caida,
-      .data$criterios_caida
+      DIRECTORIO,
+      SECUENCIA_P,
+      cae_existencia,
+      cae_lina,
+      cae_campo,
+      n_criterios_caida,
+      criterios_caida
     ) %>%
     dplyr::mutate(
       detectada_intermedia = .data$n_criterios_caida > 0
@@ -360,14 +360,14 @@ diagnostico_muestras_vs_tres_criterios <- function(
   personas_eval <- diag_tres$personas_eval %>%
     normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
-      .data$cae_existencia,
-      .data$cae_lina,
-      .data$cae_campo,
-      .data$n_criterios_caida,
-      .data$criterios_caida
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
+      cae_existencia,
+      cae_lina,
+      cae_campo,
+      n_criterios_caida,
+      criterios_caida
     ) %>%
     dplyr::mutate(
       detectada_intermedia = .data$n_criterios_caida > 0
@@ -382,11 +382,11 @@ diagnostico_muestras_vs_tres_criterios <- function(
     dplyr::left_join(
       viviendas_eval %>%
         dplyr::rename(
-          cae_existencia_intermedia = .data$cae_existencia,
-          cae_lina_intermedia = .data$cae_lina,
-          cae_campo_intermedia = .data$cae_campo,
-          n_criterios_caida_intermedia = .data$n_criterios_caida,
-          criterios_caida_intermedia = .data$criterios_caida
+          cae_existencia_intermedia = cae_existencia,
+          cae_lina_intermedia = cae_lina,
+          cae_campo_intermedia = cae_campo,
+          n_criterios_caida_intermedia = n_criterios_caida,
+          criterios_caida_intermedia = criterios_caida
         ),
       by = "DIRECTORIO"
     )
@@ -400,11 +400,11 @@ diagnostico_muestras_vs_tres_criterios <- function(
     dplyr::left_join(
       hogares_eval %>%
         dplyr::rename(
-          cae_existencia_intermedia = .data$cae_existencia,
-          cae_lina_intermedia = .data$cae_lina,
-          cae_campo_intermedia = .data$cae_campo,
-          n_criterios_caida_intermedia = .data$n_criterios_caida,
-          criterios_caida_intermedia = .data$criterios_caida
+          cae_existencia_intermedia = cae_existencia,
+          cae_lina_intermedia = cae_lina,
+          cae_campo_intermedia = cae_campo,
+          n_criterios_caida_intermedia = n_criterios_caida,
+          criterios_caida_intermedia = criterios_caida
         ),
       by = c("DIRECTORIO", "SECUENCIA_P")
     )
@@ -414,34 +414,34 @@ diagnostico_muestras_vs_tres_criterios <- function(
     dplyr::left_join(
       reporte_persona %>%
         dplyr::select(
-          .data$DIRECTORIO,
-          .data$SECUENCIA_P,
-          .data$ORDEN,
-          .data$match_en_reporte_final,
-          .data$cae_existencia,
-          .data$cae_lina,
-          .data$cae_campo,
-          .data$cae_duplicado,
-          .data$n_criterios_reporte,
-          .data$criterios_reporte,
-          .data$criterio_principal_reporte,
-          .data$razon_principal_caida,
-          .data$variable_principal_caida,
-          .data$valor_principal_caida,
-          .data$observacion_final,
-          .data$observacion_resumen,
-          .data$observacion_duplicado
+          DIRECTORIO,
+          SECUENCIA_P,
+          ORDEN,
+          match_en_reporte_final,
+          cae_existencia,
+          cae_lina,
+          cae_campo,
+          cae_duplicado,
+          n_criterios_reporte,
+          criterios_reporte,
+          criterio_principal_reporte,
+          razon_principal_caida,
+          variable_principal_caida,
+          valor_principal_caida,
+          observacion_final,
+          observacion_resumen,
+          observacion_duplicado
         ),
       by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
     ) %>%
     dplyr::left_join(
       personas_eval %>%
         dplyr::rename(
-          cae_existencia_intermedia = .data$cae_existencia,
-          cae_lina_intermedia = .data$cae_lina,
-          cae_campo_intermedia = .data$cae_campo,
-          n_criterios_caida_intermedia = .data$n_criterios_caida,
-          criterios_caida_intermedia = .data$criterios_caida
+          cae_existencia_intermedia = cae_existencia,
+          cae_lina_intermedia = cae_lina,
+          cae_campo_intermedia = cae_campo,
+          n_criterios_caida_intermedia = n_criterios_caida,
+          criterios_caida_intermedia = criterios_caida
         ),
       by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
     )
@@ -548,47 +548,47 @@ diagnostico_muestras_vs_tres_criterios <- function(
       criterios_caida_intermedia = dplyr::coalesce(.data$criterios_caida_intermedia, "ninguno")
     ) %>%
     dplyr::select(
-      .data$hoja,
-      .data$problema,
-      .data$nivel,
-      .data$variable_reportada,
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
-      .data$DIRECTORIO_HOG,
-      .data$UUID_muestras,
-      .data$directorio_existe_en_base_actual,
-      .data$nivel_cruce_usado,
-      .data$llave_cruce,
-      .data$match_estricto_nivel,
-      .data$match_directorio_reporte_final,
-      .data$match_flexible_directorio,
-      .data$match_en_reporte_final,
-      .data$causal_no_deteccion,
-      .data$origen_deteccion_final,
-      .data$tipo_deteccion_final,
-      .data$observacion_deteccion_final,
-      .data$detectada_final,
-      .data$detectada_intermedia,
-      .data$aparece_reporte_final,
-      .data$cae_existencia,
-      .data$cae_lina,
-      .data$cae_campo,
-      .data$cae_duplicado,
-      .data$n_criterios_reporte,
-      .data$criterios_reporte,
-      .data$criterio_principal_reporte,
-      .data$razon_principal_caida,
-      .data$variable_principal_caida,
-      .data$valor_principal_caida,
-      .data$observacion_final,
-      .data$observacion_resumen,
-      .data$observacion_duplicado,
-      .data$cae_existencia_intermedia,
-      .data$cae_lina_intermedia,
-      .data$cae_campo_intermedia,
-      .data$n_criterios_caida_intermedia,
-      .data$criterios_caida_intermedia,
+      hoja,
+      problema,
+      nivel,
+      variable_reportada,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
+      DIRECTORIO_HOG,
+      UUID_muestras,
+      directorio_existe_en_base_actual,
+      nivel_cruce_usado,
+      llave_cruce,
+      match_estricto_nivel,
+      match_directorio_reporte_final,
+      match_flexible_directorio,
+      match_en_reporte_final,
+      causal_no_deteccion,
+      origen_deteccion_final,
+      tipo_deteccion_final,
+      observacion_deteccion_final,
+      detectada_final,
+      detectada_intermedia,
+      aparece_reporte_final,
+      cae_existencia,
+      cae_lina,
+      cae_campo,
+      cae_duplicado,
+      n_criterios_reporte,
+      criterios_reporte,
+      criterio_principal_reporte,
+      razon_principal_caida,
+      variable_principal_caida,
+      valor_principal_caida,
+      observacion_final,
+      observacion_resumen,
+      observacion_duplicado,
+      cae_existencia_intermedia,
+      cae_lina_intermedia,
+      cae_campo_intermedia,
+      n_criterios_caida_intermedia,
+      criterios_caida_intermedia,
       dplyr::everything()
     ) %>%
     dplyr::arrange(.data$hoja, .data$nivel, .data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN)
@@ -602,9 +602,9 @@ diagnostico_muestras_vs_tres_criterios <- function(
     ) %>%
     dplyr::summarise(
       casos_reportados = dplyr::n(),
-      directorios_unicos = n_distinct_safe(dplyr::cur_data(), "DIRECTORIO"),
-      hogares_unicos = n_distinct_safe(dplyr::cur_data(), c("DIRECTORIO", "SECUENCIA_P")),
-      personas_unicas = n_distinct_safe(dplyr::cur_data(), c("DIRECTORIO", "SECUENCIA_P", "ORDEN")),
+      directorios_unicos = n_distinct_safe(dplyr::pick(dplyr::everything()), "DIRECTORIO"),
+      hogares_unicos = n_distinct_safe(dplyr::pick(dplyr::everything()), c("DIRECTORIO", "SECUENCIA_P")),
+      personas_unicas = n_distinct_safe(dplyr::pick(dplyr::everything()), c("DIRECTORIO", "SECUENCIA_P", "ORDEN")),
       matches_estrictos_nivel = sum(.data$match_estricto_nivel, na.rm = TRUE),
       matches_flexibles_directorio = sum(.data$match_directorio_reporte_final, na.rm = TRUE),
       detectadas_final = sum(.data$detectada_final, na.rm = TRUE),
@@ -740,14 +740,14 @@ diagnostico_muestras_vs_tres_criterios <- function(
         "SECUENCIA_P" %in% names(dfs[[toupper(cap_hog)]])) {
 
       mapa_hog <- dfs[[toupper(cap_hog)]] %>%
-        dplyr::select(.data$DIRECTORIO, .data$SECUENCIA_P, .data$DIRECTORIO_HOG) %>%
+        dplyr::select(DIRECTORIO, SECUENCIA_P, DIRECTORIO_HOG) %>%
         normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "DIRECTORIO_HOG")) %>%
         dplyr::distinct()
 
       out <- out %>%
         dplyr::left_join(
           mapa_hog %>%
-            dplyr::rename(SECUENCIA_P_mapa = .data$SECUENCIA_P),
+            dplyr::rename(SECUENCIA_P_mapa = SECUENCIA_P),
           by = c("DIRECTORIO", "DIRECTORIO_HOG")
         ) %>%
         dplyr::mutate(
@@ -767,15 +767,15 @@ diagnostico_muestras_vs_tres_criterios <- function(
 
   out %>%
     dplyr::relocate(
-      .data$hoja,
-      .data$problema,
-      .data$nivel,
-      .data$variable_reportada,
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
-      .data$DIRECTORIO_HOG,
-      .data$UUID_muestras
+      hoja,
+      problema,
+      nivel,
+      variable_reportada,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
+      DIRECTORIO_HOG,
+      UUID_muestras
     )
 }
 

@@ -91,24 +91,24 @@ diagnostico_caidas_tres_criterios <- function(
 
   viv_base <- diag_lina$viviendas_eval %>%
     dplyr::select(
-      .data$DIRECTORIO,
+      DIRECTORIO,
       dplyr::any_of(c("UUID", "SEGMENTO", "CLASE"))
     ) %>%
-    dplyr::distinct(.data$DIRECTORIO, .keep_all = TRUE)
+    dplyr::distinct(DIRECTORIO, .keep_all = TRUE)
 
   hog_base <- diag_lina$hogares_eval %>%
-    dplyr::select(.data$DIRECTORIO, .data$SECUENCIA_P) %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .keep_all = TRUE) %>%
+    dplyr::select(DIRECTORIO, SECUENCIA_P) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, .keep_all = TRUE) %>%
     dplyr::left_join(viv_base, by = "DIRECTORIO")
 
   per_base <- diag_lina$personas_eval %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       dplyr::any_of("edad")
     ) %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN, .keep_all = TRUE) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN, .keep_all = TRUE) %>%
     dplyr::left_join(viv_base, by = "DIRECTORIO")
 
   existencia_viv <- diag_existencia$resumen_caidas_regla2 %>%
@@ -204,14 +204,14 @@ diagnostico_caidas_tres_criterios <- function(
 
   campo_per <- campo_hog_conteo %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$NHCCPCTRL2,
-      .data$n_personas_cap_e,
-      .data$diferencia_personas_hogar,
-      .data$cae_campo_nhccpctrl2,
-      .data$motivo_detallado_campo_nhccpctrl2,
-      .data$criterio_falla_campo_nhccpctrl2
+      DIRECTORIO,
+      SECUENCIA_P,
+      NHCCPCTRL2,
+      n_personas_cap_e,
+      diferencia_personas_hogar,
+      cae_campo_nhccpctrl2,
+      motivo_detallado_campo_nhccpctrl2,
+      criterio_falla_campo_nhccpctrl2
     )
 
   viviendas_eval <- viv_base %>%
@@ -409,7 +409,7 @@ diagnostico_caidas_tres_criterios <- function(
   }
 
   hogares_control <- C %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .keep_all = TRUE) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, .keep_all = TRUE) %>%
     dplyr::transmute(
       DIRECTORIO = as.character(.data$DIRECTORIO),
       SECUENCIA_P = as.character(.data$SECUENCIA_P),
@@ -417,7 +417,7 @@ diagnostico_caidas_tres_criterios <- function(
     )
 
   personas_cap_e <- E %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN) %>%
     dplyr::count(.data$DIRECTORIO, .data$SECUENCIA_P, name = "n_personas_cap_e") %>%
     dplyr::mutate(
       DIRECTORIO = as.character(.data$DIRECTORIO),
@@ -630,16 +630,16 @@ diagnostico_caidas_tres_criterios <- function(
       .data$ORDEN
     ) %>%
     dplyr::relocate(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       dplyr::any_of(c("edad", "UUID", "SEGMENTO", "CLASE")),
-      .data$criterio_revision_principal,
-      .data$grupo_caida,
-      .data$variable_caida,
-      .data$valor_detectado,
-      .data$observacion_resumen,
-      .before = .data$cae_existencia
+      criterio_revision_principal,
+      grupo_caida,
+      variable_caida,
+      valor_detectado,
+      observacion_resumen,
+      .before = cae_existencia
     )
 }
 
@@ -660,9 +660,9 @@ diagnostico_caidas_tres_criterios <- function(
       )
     ) %>%
     dplyr::distinct(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       .keep_all = TRUE
     )
 }
@@ -827,13 +827,13 @@ diagnostico_caidas_tres_criterios <- function(
     ) %>%
     dplyr::ungroup() %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
-      .data$grupo_lina,
-      .data$variable_lina,
-      .data$valor_lina,
-      .data$observacion_lina
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
+      grupo_lina,
+      variable_lina,
+      valor_lina,
+      observacion_lina
     )
 }
 
@@ -862,7 +862,7 @@ diagnostico_caidas_tres_criterios <- function(
   }
 
   campo_viv <- A %>%
-    dplyr::distinct(.data$DIRECTORIO, .keep_all = TRUE) %>%
+    dplyr::distinct(DIRECTORIO, .keep_all = TRUE) %>%
     dplyr::transmute(
       DIRECTORIO = as.character(.data$DIRECTORIO),
       grupo_campo_viv = dplyr::case_when(
@@ -909,7 +909,7 @@ diagnostico_caidas_tres_criterios <- function(
     )
 
   campo_hog <- C %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .keep_all = TRUE) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, .keep_all = TRUE) %>%
     dplyr::mutate(
       cae_hogar_campo = !(.data$NHCCPCTRL1 == 1 & .data$RES_HOG == 1)
     ) %>%
@@ -957,7 +957,7 @@ diagnostico_caidas_tres_criterios <- function(
     )
 
   campo_per <- E %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN, .keep_all = TRUE) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN, .keep_all = TRUE) %>%
     dplyr::mutate(
       cae_persona_campo = !(.data$NPCEPCTRL1 == 1 & .data$RES_PER == 1)
     ) %>%
@@ -1072,13 +1072,13 @@ diagnostico_caidas_tres_criterios <- function(
     ) %>%
     dplyr::ungroup() %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
-      .data$grupo_campo,
-      .data$variable_campo,
-      .data$valor_campo,
-      .data$observacion_campo
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
+      grupo_campo,
+      variable_campo,
+      valor_campo,
+      observacion_campo
     )
 }
 
@@ -1209,9 +1209,9 @@ diagnostico_duplicados_personas_e <- function(
 
   personas_base <- E %>%
     dplyr::distinct(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       .keep_all = TRUE
     ) %>%
     dplyr::mutate(
@@ -1303,29 +1303,29 @@ diagnostico_duplicados_personas_e <- function(
         .data$ORDEN
       ) %>%
       dplyr::select(
-        .data$DIRECTORIO,
-        .data$SECUENCIA_P,
-        .data$ORDEN,
+        DIRECTORIO,
+        SECUENCIA_P,
+        ORDEN,
         dplyr::any_of(meta_vars),
-        .data$NPCEP2,
-        .data$NPCEP3A,
-        .data$NPCEP_5,
-        .data$criterio_duplicados,
-        .data$clave_duplicado,
-        .data$n_en_grupo_duplicado,
-        .data$nombre_normalizado,
-        .data$tipo_documento_normalizado,
-        .data$fecha_nac_normalizada,
-        .data$numero_documento_normalizado,
-        .data$numero_documento_unificado,
-        .data$grupo_duplicado,
-        .data$n_repetidos,
-        .data$observacion_duplicado
+        NPCEP2,
+        NPCEP3A,
+        NPCEP_5,
+        criterio_duplicados,
+        clave_duplicado,
+        n_en_grupo_duplicado,
+        nombre_normalizado,
+        tipo_documento_normalizado,
+        fecha_nac_normalizada,
+        numero_documento_normalizado,
+        numero_documento_unificado,
+        grupo_duplicado,
+        n_repetidos,
+        observacion_duplicado
       )
 
     personas_con_identificador_completo <- personas_eval %>%
       dplyr::filter(.data$identificador_completo) %>%
-      dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+      dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN) %>%
       nrow()
   } else {
     personas_eval <- personas_base %>%
@@ -1352,6 +1352,17 @@ diagnostico_duplicados_personas_e <- function(
         dplyr::filter(
           !.es_nombre_generico_duplicado(.data$nombre_normalizado),
           !.es_documento_placeholder_duplicado(.data$numero_documento_normalizado)
+        )
+    }
+
+    if (identical(criterio_duplicados, "dane_completa")) {
+      docs_apilados <- docs_apilados %>%
+        dplyr::mutate(
+          nombre_normalizado = dplyr::if_else(
+            .es_nombre_generico_duplicado(.data$nombre_normalizado),
+            "NO INFORMA",
+            .data$nombre_normalizado
+          )
         )
     }
 
@@ -1440,34 +1451,34 @@ diagnostico_duplicados_personas_e <- function(
         .data$ORDEN
       ) %>%
       dplyr::select(
-        .data$DIRECTORIO,
-        .data$SECUENCIA_P,
-        .data$ORDEN,
+        DIRECTORIO,
+        SECUENCIA_P,
+        ORDEN,
         dplyr::any_of(meta_vars),
-        .data$NPCEP2,
-        .data$NPCEP3A,
-        .data$NPCEP_5,
-        .data$criterio_duplicados,
-        .data$clave_duplicado,
-        .data$n_en_grupo_duplicado,
-        .data$nombre_normalizado,
-        .data$tipo_documento_normalizado,
-        .data$fecha_nac_normalizada,
-        .data$numero_documento_normalizado,
-        .data$numero_documento_unificado,
-        .data$grupo_duplicado,
-        .data$n_repetidos,
+        NPCEP2,
+        NPCEP3A,
+        NPCEP_5,
+        criterio_duplicados,
+        clave_duplicado,
+        n_en_grupo_duplicado,
+        nombre_normalizado,
+        tipo_documento_normalizado,
+        fecha_nac_normalizada,
+        numero_documento_normalizado,
+        numero_documento_unificado,
+        grupo_duplicado,
+        n_repetidos,
         dplyr::any_of("fuentes_documento_duplicado"),
-        .data$observacion_duplicado
+        observacion_duplicado
       )
 
     personas_con_identificador_completo <- docs_apilados %>%
-      dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+      dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN) %>%
       nrow()
   }
 
   personas_totales_e <- personas_base %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN) %>%
     nrow()
 
   grupos_duplicados_n <- grupos_duplicados %>% nrow()
@@ -1562,44 +1573,44 @@ diagnostico_duplicados_personas_e <- function(
                                                            duplicados_personas_e) {
   ids_persona <- personas_eval %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       dplyr::any_of(c("edad", "UUID", "SEGMENTO", "CLASE"))
     ) %>%
     dplyr::distinct(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       .keep_all = TRUE
     )
 
   revision_base <- revision_campo %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       dplyr::any_of(c("edad", "UUID", "SEGMENTO", "CLASE")),
-      .data$cae_existencia,
-      .data$cae_lina,
-      .data$cae_campo,
-      .data$n_criterios_caida,
-      .data$criterios_caida,
-      .data$criterio_revision_principal,
-      .data$grupo_caida,
-      .data$variable_caida,
-      .data$valor_detectado,
-      .data$observacion_resumen
+      cae_existencia,
+      cae_lina,
+      cae_campo,
+      n_criterios_caida,
+      criterios_caida,
+      criterio_revision_principal,
+      grupo_caida,
+      variable_caida,
+      valor_detectado,
+      observacion_resumen
     )
 
   duplicados_base <- duplicados_personas_e %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       dplyr::any_of(c("UUID", "SEGMENTO", "CLASE")),
-      .data$NPCEP2,
-      .data$NPCEP3A,
+      NPCEP2,
+      NPCEP3A,
       dplyr::any_of(c(
         "criterio_duplicados",
         "clave_duplicado",
@@ -1609,8 +1620,8 @@ diagnostico_duplicados_personas_e <- function(
         "fecha_nac_normalizada",
         "numero_documento_normalizado"
       )),
-      .data$numero_documento_unificado,
-      .data$observacion_duplicado
+      numero_documento_unificado,
+      observacion_duplicado
     ) %>%
     dplyr::mutate(
       criterio_duplicados = dplyr::coalesce(.data$criterio_duplicados, "actual"),
@@ -1638,11 +1649,11 @@ diagnostico_duplicados_personas_e <- function(
       )
     ) %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
       dplyr::any_of(c("UUID", "SEGMENTO", "CLASE")),
-      .data$criterio_duplicados,
+      criterio_duplicados,
       dplyr::any_of(c(
         "clave_duplicado",
         "n_en_grupo_duplicado",
@@ -1651,20 +1662,20 @@ diagnostico_duplicados_personas_e <- function(
         "fecha_nac_normalizada",
         "numero_documento_normalizado"
       )),
-      .data$cae_duplicado,
-      .data$razon_duplicado,
-      .data$variable_duplicado,
-      .data$valor_duplicado,
-      .data$observacion_duplicado
+      cae_duplicado,
+      razon_duplicado,
+      variable_duplicado,
+      valor_duplicado,
+      observacion_duplicado
     )
 
   ids_union <- dplyr::bind_rows(
     revision_base %>%
-      dplyr::select(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN),
+      dplyr::select(DIRECTORIO, SECUENCIA_P, ORDEN),
     duplicados_base %>%
-      dplyr::select(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN)
+      dplyr::select(DIRECTORIO, SECUENCIA_P, ORDEN)
   ) %>%
-    dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN)
+    dplyr::distinct(DIRECTORIO, SECUENCIA_P, ORDEN)
 
   out <- ids_union %>%
     dplyr::left_join(ids_persona, by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
@@ -1787,33 +1798,33 @@ diagnostico_duplicados_personas_e <- function(
       .data$ORDEN
     ) %>%
     dplyr::select(
-      .data$DIRECTORIO,
-      .data$SECUENCIA_P,
-      .data$ORDEN,
-      .data$edad,
-      .data$UUID,
-      .data$SEGMENTO,
-      .data$CLASE,
-      .data$cae_existencia,
-      .data$cae_lina,
-      .data$cae_campo,
-      .data$cae_duplicado,
-      .data$criterio_duplicados,
-      .data$clave_duplicado,
-      .data$n_en_grupo_duplicado,
-      .data$nombre_normalizado,
-      .data$tipo_documento_normalizado,
-      .data$fecha_nac_normalizada,
-      .data$numero_documento_normalizado,
-      .data$n_criterios_reporte,
-      .data$criterios_reporte,
-      .data$criterio_principal_reporte,
-      .data$razon_principal_caida,
-      .data$variable_principal_caida,
-      .data$valor_principal_caida,
-      .data$observacion_final,
-      .data$observacion_resumen,
-      .data$observacion_duplicado
+      DIRECTORIO,
+      SECUENCIA_P,
+      ORDEN,
+      edad,
+      UUID,
+      SEGMENTO,
+      CLASE,
+      cae_existencia,
+      cae_lina,
+      cae_campo,
+      cae_duplicado,
+      criterio_duplicados,
+      clave_duplicado,
+      n_en_grupo_duplicado,
+      nombre_normalizado,
+      tipo_documento_normalizado,
+      fecha_nac_normalizada,
+      numero_documento_normalizado,
+      n_criterios_reporte,
+      criterios_reporte,
+      criterio_principal_reporte,
+      razon_principal_caida,
+      variable_principal_caida,
+      valor_principal_caida,
+      observacion_final,
+      observacion_resumen,
+      observacion_duplicado
     )
 }
 
