@@ -94,11 +94,16 @@ Variables de diagnóstico:
 ### 3. Mantener consistencia de nombres
 - No renombrar variables existentes sin necesidad
 
-### 4. Validar cambios con:
-```r
-devtools::load_all()
-devtools::check()
-```
+### 4. Dejar instrucciones de validación manual
+
+El agente no debe ejecutar automáticamente pruebas pesadas.  
+Después de modificar código, debe dejar instrucciones para que el usuario valide manualmente en RStudio, comenzando por:
+
+
+devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+
+devtools::check() solo debe sugerirse cuando sea estrictamente necesario y no debe ejecutarse sin autorización explícita del usuario.
+
 ### 5. Utilizar funciones existentes
 Las funciones existentes ya resolvieron muchos de los problemas emergentes. Usar siempre las funciones del paquete. Solo cuando no existan y sea estrictamente necesario crear nuevas.
 
@@ -311,3 +316,93 @@ Antes de concluir que existe una caída, el agente debe verificar:
 ⚠️ Conclusión:
 Una caída es el resultado de la aplicación explícita de reglas de validación, no de diferencias descriptivas entre capítulos.
 
+## Protocolo de trabajo del agente: edición sí, pruebas pesadas no (CRÍTICO)
+
+El agente debe actuar como asistente de edición y revisión del repositorio, no como ejecutor autónomo de pruebas pesadas ni de pipelines completos.
+
+### Regla principal
+
+El agente puede:
+
+- leer la estructura del paquete;
+- inspeccionar funciones y dependencias;
+- proponer planes de cambio;
+- modificar archivos de código, documentación o tests cuando el usuario lo autorice;
+- dejar instrucciones claras para validación manual.
+
+El agente NO debe ejecutar automáticamente:
+
+- pipelines completos de la encuesta;
+- procesos sobre bases grandes;
+- `devtools::check()`;
+- renderizados de Quarto;
+- scripts de análisis completos;
+- exportaciones masivas;
+- comandos que puedan tardar mucho o modificar grandes volúmenes de archivos;
+- `git commit`, `git push`, `git merge` o cambios de rama sin autorización explícita.
+
+### Pruebas y validación
+
+La validación sustantiva será realizada por el usuario en RStudio.
+
+Cuando el agente modifique código, debe entregar al final:
+
+1. archivos modificados;
+2. resumen técnico de los cambios;
+3. explicación de la lógica ajustada;
+4. supuestos aplicados;
+5. riesgos o posibles efectos colaterales;
+6. instrucciones exactas para que el usuario pruebe manualmente;
+7. ejemplo mínimo de validación usando `devtools::load_all()`.
+
+Ejemplo esperado de instrucciones de prueba:
+
+devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+
+Luego ejecutar manualmente la función modificadacon objetos ya cargados por el usuario en RStudio.
+
+### Ejecución de comandos
+
+El agente solo puede ejecutar comandos livianos de inspección, por ejemplo:
+
+git status
+git diff
+ls
+grep
+find
+
+No debe ejecutar comandos que cambien el estado del repositorio o del entorno sin autorización.
+
+### Antes de modificar archivos
+
+Antes de editar, el agente debe:
+
+- identificar las funciones relevantes;
+- identificar los archivos que tocaría;
+- explicar el cambio mínimo propuesto;
+- esperar aprobación del usuario si el cambio puede afectar resultados existentes.
+
+### Después de modificar archivos
+
+Después de editar, el agente debe reportar:
+
+Archivos modificados:
+- R/archivo_1.R
+- man/archivo_1.Rd, si aplica
+- NAMESPACE, si aplica
+
+Cambios realizados:
+- ...
+
+Supuestos:
+- ...
+
+Riesgos:
+- ...
+
+Cómo probar manualmente:
+- ...
+
+### Regla de seguridad
+
+Si una tarea requiere comprobar resultados sobre bases grandes, el agente debe preparar el código o las instrucciones, pero no ejecutar la prueba. El usuario será quien corra la validación final en RStudio.
