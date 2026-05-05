@@ -239,8 +239,6 @@ Debe:
 
 ## Diccionario de variables
 
-## Diccionario de variables
-
 El diccionario oficial de la encuesta se encuentra en:
 
 ```text
