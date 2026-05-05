@@ -99,10 +99,11 @@ Variables de diagnóstico:
 El agente no debe ejecutar automáticamente pruebas pesadas.  
 Después de modificar código, debe dejar instrucciones para que el usuario valide manualmente en RStudio, comenzando por:
 
-
+```r
 devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+```
 
-devtools::check() solo debe sugerirse cuando sea estrictamente necesario y no debe ejecutarse sin autorización explícita del usuario.
+`devtools::check()` solo debe sugerirse cuando sea estrictamente necesario y no debe ejecutarse sin autorización explícita del usuario.
 
 ### 5. Utilizar funciones existentes
 Las funciones existentes ya resolvieron muchos de los problemas emergentes. Usar siempre las funciones del paquete. Solo cuando no existan y sea estrictamente necesario crear nuevas.
@@ -238,9 +239,7 @@ Debe:
 
 ## Diccionario de variables
 
-El diccionario oficial de la encuesta se encuentra en:
-
-inst/diccionario/Diccionario_em2025.xlsx
+Las descripciones de variables provienen del mismo diccionario oficial.
 
 Contiene:
 - Nombre de variable
@@ -357,22 +356,29 @@ Cuando el agente modifique código, debe entregar al final:
 
 Ejemplo esperado de instrucciones de prueba:
 
+```r
 devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+```
 
-Luego ejecutar manualmente la función modificadacon objetos ya cargados por el usuario en RStudio.
+Luego ejecutar manualmente la función modificada con objetos ya cargados por el usuario en RStudio.
 
 ### Ejecución de comandos
 
 El agente solo puede ejecutar comandos livianos de inspección, por ejemplo:
 
+```text
 git status
 git diff
 ls
 grep
 find
+Get-Content
+Get-ChildItem
+Select-String
+rg
+```
 
 No debe ejecutar comandos que cambien el estado del repositorio o del entorno sin autorización.
-
 ### Antes de modificar archivos
 
 Antes de editar, el agente debe:
