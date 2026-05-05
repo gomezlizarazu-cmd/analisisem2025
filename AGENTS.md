@@ -239,7 +239,14 @@ Debe:
 
 ## Diccionario de variables
 
-Las descripciones de variables provienen del mismo diccionario oficial.
+## Diccionario de variables
+
+El diccionario oficial de la encuesta se encuentra en:
+
+```text
+inst/diccionario/Diccionario_em2025.xlsx
+```
+Las descripciones de variables provienen de ese mismo diccionario oficial.
 
 Contiene:
 - Nombre de variable
