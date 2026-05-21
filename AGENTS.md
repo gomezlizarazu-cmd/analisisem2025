@@ -417,3 +417,36 @@ Cómo probar manualmente:
 ### Regla de seguridad
 
 Si una tarea requiere comprobar resultados sobre bases grandes, el agente debe preparar el código o las instrucciones, pero no ejecutar la prueba. El usuario será quien corra la validación final en RStudio.
+
+## Flujo local Codex-OneDrive (CRITICO)
+
+El agente puede estar trabajando en un worktree de Codex distinto a la carpeta que el usuario carga manualmente en RStudio.
+
+Rutas relevantes:
+
+- Worktree de Codex: `C:/Users/gomez/.codex/worktrees/ffb5/analisisem2025`
+- Paquete local del usuario: `C:/Users/gomez/OneDrive/Documentos/analisisem2025`
+
+### Regla operativa
+
+Antes de modificar codigo, el agente debe verificar el estado de ambas rutas con comandos livianos (`git status --short`) y reconocer si existen cambios en OneDrive que no estan en el worktree.
+
+Si el usuario valida en RStudio con:
+
+```r
+devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+```
+
+entonces los cambios finales tambien deben quedar sincronizados en la carpeta de OneDrive.
+
+### Sincronizacion segura
+
+- Sincronizar primero desde OneDrive hacia el worktree cuando OneDrive tenga cambios locales que el worktree no refleja.
+- Despues de editar en el worktree, copiar a OneDrive solo los archivos modificados por el agente y necesarios para la tarea.
+- No sobrescribir cambios ajenos ni reemplazar carpetas completas sin revisar.
+- Si un archivo fue modificado en ambas rutas de manera incompatible, detenerse y pedir instruccion antes de continuar.
+- Reportar al final que archivos quedaron sincronizados en OneDrive.
+
+### Validacion
+
+La validacion manual que se entregue al usuario debe usar por defecto la ruta de OneDrive, porque esa es la ruta que el usuario carga en RStudio.
