@@ -9,7 +9,11 @@ construir_sabana_casos_recuperables(
   diag_secuencia,
   dfs,
   carpeta_raiz = ".",
-  archivo = "sabana_auditoria_casos_recuperables.xlsx"
+  archivo = "sabana_auditoria_casos_recuperables.xlsx",
+  diag_con_tematica = NULL,
+  reporte_final_caidas = NULL,
+  cap_hog = "C",
+  cap_per = "E"
 )
 }
 \arguments{
@@ -24,34 +28,62 @@ observadas en \code{E}, incluyendo \code{tipo_problema}.}
 \item{carpeta_raiz}{Carpeta donde se exportara la sabana.}
 
 \item{archivo}{Nombre del archivo Excel de salida.}
+
+\item{diag_con_tematica}{Objeto opcional producido por
+\code{diagnostico_caidas_con_tematica()}. Si se suministra, se usa
+\code{diag_con_tematica$reporte_final_caidas} para distinguir casos
+recuperables de casos solo auditables por llave.}
+
+\item{reporte_final_caidas}{Reporte final opcional a nivel persona. Se usa
+solo si \code{diag_con_tematica} es \code{NULL}.}
+
+\item{cap_hog}{Capitulo de control de hogares. Por defecto \code{"C"}.}
+
+\item{cap_per}{Capitulo de personas. Por defecto \code{"E"}.}
 }
 \value{
 Una lista con:
 \describe{
-\item{casos_recuperables}{Tibble consolidado con los casos recuperables.}
+\item{casos_recuperables}{Tibble consolidado con los casos auditables por
+llave, conservado por compatibilidad historica. La columna
+\code{recuperable_potencial} identifica los casos recuperables bajo la nueva
+logica.}
+\item{casos_auditables_llave}{Misma base de casos auditables por llave.}
+\item{recuperables_potenciales}{Subconjunto de casos auditables sin
+bloqueos independientes detectados.}
+\item{no_recuperables}{Subconjunto de casos auditables que no pueden
+clasificarse como recuperables potenciales.}
 \item{resumen_directorios}{Resumen por \code{DIRECTORIO} de las llaves
 auditadas y tipos de recuperacion.}
 \item{ruta}{Ruta del archivo Excel exportado.}
 }
 }
 \description{
-Consolida en una sabana de auditoria los casos recuperables detectados en la
-validacion de flujo persona, separando problemas de \code{SECUENCIA_P} y de
-\code{ORDEN}, y exportando todas las filas de los capitulos involucrados para los
-\code{DIRECTORIO} afectados.
+Consolida en una sabana de auditoria los casos con desajustes de llave
+detectados en la validacion de flujo persona, separando problemas de
+\code{SECUENCIA_P} y de \code{ORDEN}, y exportando todas las filas de los
+capitulos involucrados para los \code{DIRECTORIO} afectados.
 }
 \details{
 La funcion no modifica la logica productiva del paquete. Su proposito es
-construir una sabana manual de auditoria con los casos potencialmente
-recuperables:
+construir una sabana manual de auditoria con los casos auditables por llave:
 \itemize{
 \item hogares no observados en \code{E} cuyo \code{DIRECTORIO} si existe en \code{E};
 \item personas con \code{ORDEN} mayor al numero de personas observadas en \code{E}.
 }
 
-Para cada \code{DIRECTORIO} recuperable, la exportacion incluye todas las filas de
-cada capitulo presente en \code{dfs}, junto con dos hojas de control:
-\code{casos_recuperables} y \code{resumen_directorios}.
+Si se entrega \code{diag_con_tematica} o \code{reporte_final_caidas}, la funcion agrega
+banderas de recuperabilidad. Un caso solo queda como
+\code{recuperable_potencial} cuando el desajuste de llave puede explicar la caida
+y no se observan bloqueos independientes de campo, duplicados o tematica. Por
+ejemplo, un hogar no observado en \code{E} no es recuperable si en el capitulo
+\code{C} tiene \code{NHCCPCTRL1 != 1} o \code{RES_HOG != 1}.
+
+Para cada \code{DIRECTORIO} auditable, la exportacion incluye todas las filas de
+cada capitulo presente en \code{dfs}, junto con hojas de control:
+\code{casos_recuperables}, \code{casos_auditables_llave},
+\code{recuperables_potenciales}, \code{no_recuperables} y
+\code{resumen_directorios}.
 }
 \examples{
 \dontrun{

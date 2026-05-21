@@ -356,6 +356,136 @@ test_that("construye sabana de casos recuperables con tipos ORDEN y SECUENCIA_P"
   expect_true(all(c("1001", "1002") %in% salida$resumen_directorios$DIRECTORIO))
 })
 
+test_that("clasifica como no recuperable un hogar no observado en E con caida de campo", {
+  testthat::skip_if_not_installed("openxlsx")
+
+  dfs <- list(
+    C = tibble::tibble(
+      DIRECTORIO = c("2001", "2001", "2002", "2002"),
+      SECUENCIA_P = c("1", "2", "1", "2"),
+      NHCCPCTRL1 = c(1, 1, 1, 2),
+      NHCCPCTRL1A = c(NA, NA, NA, NA),
+      NHCCPCTRL2 = c(1, 1, 1, NA),
+      RES_HOG = c(1, 1, 1, 2)
+    ),
+    E = tibble::tibble(
+      DIRECTORIO = c("2001", "2002"),
+      SECUENCIA_P = c("1", "1"),
+      ORDEN = c("1", "1"),
+      NPCEPCTRL1 = c(1, 1),
+      NPCEPCTRL1A = c(NA, NA),
+      RES_PER = c(1, 1),
+      NPCEP6 = c(1, 1)
+    )
+  )
+
+  diag_orden_fuera_E <- tibble::tibble(
+    DIRECTORIO = c("2001", "2002"),
+    SECUENCIA_P = c("2", "2"),
+    ORDEN = c("1", "1"),
+    tipo_problema = c("Hogar no observado en E", "Hogar no observado en E")
+  )
+
+  diag_secuencia <- tibble::tibble(
+    DIRECTORIO = c("2001", "2002"),
+    SECUENCIA_P = c("2", "2"),
+    directorio_existe_en_E = c(TRUE, TRUE)
+  )
+
+  reporte_final_caidas <- tibble::tibble(
+    DIRECTORIO = c("2001", "2002"),
+    SECUENCIA_P = c("2", "2"),
+    ORDEN = c("1", "1"),
+    cae_existencia = c(TRUE, TRUE),
+    cae_lina = c(FALSE, TRUE),
+    cae_campo = c(TRUE, TRUE),
+    cae_duplicado = c(FALSE, FALSE),
+    cae_tematica = c(FALSE, FALSE),
+    n_criterios_reporte = c(2L, 3L),
+    criterios_reporte = c("existencia | campo", "existencia | lina | campo")
+  )
+
+  carpeta_salida <- tempfile("sabana_recuperables_clasificada_")
+  dir.create(carpeta_salida)
+
+  salida <- construir_sabana_casos_recuperables(
+    diag_orden_fuera_E = diag_orden_fuera_E,
+    diag_secuencia = diag_secuencia,
+    dfs = dfs,
+    carpeta_raiz = carpeta_salida,
+    reporte_final_caidas = reporte_final_caidas
+  )
+
+  caso_recuperable <- salida$casos_recuperables %>%
+    dplyr::filter(.data$DIRECTORIO == "2001")
+  caso_no_recuperable <- salida$casos_recuperables %>%
+    dplyr::filter(.data$DIRECTORIO == "2002")
+
+  expect_true(caso_recuperable$recuperable_potencial)
+  expect_false(caso_no_recuperable$recuperable_potencial)
+  expect_equal(
+    caso_no_recuperable$estado_recuperacion,
+    "auditable_no_recuperable_campo_hogar"
+  )
+  expect_equal(nrow(salida$recuperables_potenciales), 1L)
+  expect_equal(nrow(salida$no_recuperables), 1L)
+})
+
+test_that("construye sabana recuperable directamente desde diagnostico con tematica", {
+  testthat::skip_if_not_installed("openxlsx")
+
+  dfs <- list(
+    C = tibble::tibble(
+      DIRECTORIO = c("3001", "3001"),
+      SECUENCIA_P = c("1", "2"),
+      NHCCPCTRL1 = c(1, 1),
+      NHCCPCTRL2 = c(1, 1),
+      RES_HOG = c(1, 1)
+    ),
+    E = tibble::tibble(
+      DIRECTORIO = "3001",
+      SECUENCIA_P = "1",
+      ORDEN = "1",
+      NPCEPCTRL1 = 1,
+      RES_PER = 1,
+      NPCEP6 = 1
+    )
+  )
+
+  diag_con_tematica <- list(
+    reporte_final_caidas = tibble::tibble(
+      DIRECTORIO = "3001",
+      SECUENCIA_P = "2",
+      ORDEN = "1",
+      cae_existencia = TRUE,
+      cae_lina = FALSE,
+      cae_campo = TRUE,
+      cae_duplicado = FALSE,
+      cae_tematica = FALSE,
+      n_criterios_reporte = 2L,
+      criterios_reporte = "existencia | campo"
+    )
+  )
+
+  carpeta_salida <- tempfile("sabana_recuperables_desde_diag_")
+  dir.create(carpeta_salida)
+
+  salida <- construir_sabana_casos_recuperables_desde_diagnostico(
+    diag_con_tematica = diag_con_tematica,
+    dfs = dfs,
+    carpeta_raiz = carpeta_salida
+  )
+
+  expect_equal(nrow(salida$casos_recuperables), 1L)
+  expect_true(salida$casos_recuperables$recuperable_potencial)
+  expect_equal(
+    salida$casos_recuperables$tipo_recuperacion,
+    "SECUENCIA_P"
+  )
+  expect_true("diag_orden_fuera_E" %in% names(salida))
+  expect_true(file.exists(salida$ruta))
+})
+
 test_that("falla si faltan variables requeridas para construir sabana recuperable", {
   dfs <- make_dfs_em_completa_mock()
 
