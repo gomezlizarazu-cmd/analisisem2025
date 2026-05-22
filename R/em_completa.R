@@ -785,25 +785,32 @@ construir_sabana_casos_recuperables <- function(
     stop("`reporte_final_caidas` debe ser un data frame.")
   }
 
-  casos_orden_recuperables <- diag_orden_fuera_E %>%
-    normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
+  keys_persona <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+  keys_hogar <- c("DIRECTORIO", "SECUENCIA_P")
+
+  diag_orden_norm <- diag_orden_fuera_E %>%
+    normalize_keys(keys_persona)
+
+  casos_orden_recuperables <- diag_orden_norm %>%
     dplyr::filter(
-      .data$tipo_problema == "ORDEN mayor que personas observadas en E"
+      .data$tipo_problema %in% c(
+        "ORDEN mayor que personas observadas en E",
+        "Llave sin evidencia en capitulos persona"
+      )
     ) %>%
     dplyr::mutate(
       tipo_recuperacion = "ORDEN"
     )
 
-  casos_secuencia_recuperables <- diag_orden_fuera_E %>%
-    normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
+  casos_secuencia_recuperables <- diag_orden_norm %>%
     dplyr::filter(
       .data$tipo_problema == "Hogar no observado en E"
     ) %>%
     dplyr::semi_join(
       diag_secuencia %>%
-        normalize_keys(c("DIRECTORIO", "SECUENCIA_P")) %>%
+        normalize_keys(keys_hogar) %>%
         dplyr::filter(.coerce_flag_base_em_completa(.data$directorio_existe_en_E)),
-      by = c("DIRECTORIO", "SECUENCIA_P")
+      by = keys_hogar
     ) %>%
     dplyr::mutate(
       tipo_recuperacion = "SECUENCIA_P"
@@ -851,7 +858,21 @@ construir_sabana_casos_recuperables <- function(
     "razon_principal_caida",
     "variable_principal_caida",
     "valor_principal_caida",
-    "observacion_final"
+    "observacion_final",
+    "n_capitulos_persona_sospechosos",
+    "n_capitulos_hogar_sospechosos",
+    "n_capitulos_vivienda_sospechosos",
+    "n_capitulos_sospechosos",
+    "capitulos_persona_sospechosos",
+    "capitulos_hogar_sospechosos",
+    "capitulos_vivienda_sospechosos",
+    "capitulos_sospechosos",
+    "capitulos_sospechosos_persona",
+    "capitulos_sospechosos_hogar",
+    "capitulos_sospechosos_vivienda",
+    "nivel_evidencia_sospechosa",
+    "variable_control_hogar_usada",
+    "control_hogar_sugiere_mas_personas"
   )
 
   casos_recuperables <- casos_recuperables %>%
@@ -862,6 +883,22 @@ construir_sabana_casos_recuperables <- function(
     reporte_final_caidas = reporte_final_caidas,
     cap_hog = cap_hog,
     cap_per = cap_per
+  )
+
+  fuentes_persona_llave <- .fuentes_llave_nivel_sabana(
+    dfs = dfs,
+    nivel = "persona",
+    casos = casos_recuperables
+  )
+  fuentes_hogar_llave <- .fuentes_llave_nivel_sabana(
+    dfs = dfs,
+    nivel = "hogar",
+    casos = casos_recuperables
+  )
+  fuentes_vivienda_llave <- .fuentes_llave_nivel_sabana(
+    dfs = dfs,
+    nivel = "vivienda",
+    casos = casos_recuperables
   )
 
   casos_recuperables <- casos_recuperables %>%
@@ -889,48 +926,46 @@ construir_sabana_casos_recuperables <- function(
       controles_recuperabilidad$reporte_final,
       by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
     ) %>%
-    .clasificar_recuperabilidad_sabana()
-
-  caps_con_llave_persona <- names(dfs)[vapply(
-    dfs,
-    function(x) is.data.frame(x) && all(c("DIRECTORIO", "SECUENCIA_P", "ORDEN") %in% names(x)),
-    logical(1)
-  )]
-
-  if (length(caps_con_llave_persona) > 0 && nrow(casos_recuperables) > 0) {
-    fuentes_llave <- dplyr::bind_rows(lapply(caps_con_llave_persona, function(cap) {
-      dfs[[cap]] %>%
-        normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
-        dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
-        dplyr::mutate(capitulo_sospechoso = cap)
-    })) %>%
-      dplyr::semi_join(
-        casos_recuperables %>%
-          normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
-          dplyr::distinct(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN),
-        by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
-      ) %>%
-      dplyr::group_by(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN) %>%
-      dplyr::summarise(
-        n_capitulos_sospechosos = dplyr::n_distinct(.data$capitulo_sospechoso),
-        capitulos_sospechosos = .collapse_tokens_em_completa(.data$capitulo_sospechoso),
-        .groups = "drop"
-      )
-  } else {
-    fuentes_llave <- tibble::tibble(
-      DIRECTORIO = character(),
-      SECUENCIA_P = character(),
-      ORDEN = character(),
-      n_capitulos_sospechosos = integer(),
-      capitulos_sospechosos = character()
-    )
-  }
-
-  casos_recuperables <- casos_recuperables %>%
     dplyr::left_join(
-      fuentes_llave,
-      by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
-    )
+      fuentes_persona_llave,
+      by = keys_persona
+    ) %>%
+    dplyr::left_join(
+      fuentes_hogar_llave,
+      by = keys_hogar
+    ) %>%
+    dplyr::left_join(
+      fuentes_vivienda_llave,
+      by = "DIRECTORIO"
+    ) %>%
+    dplyr::mutate(
+      n_capitulos_persona_sospechosos = dplyr::coalesce(.data$n_capitulos_persona_sospechosos, 0L),
+      n_capitulos_hogar_sospechosos = dplyr::coalesce(.data$n_capitulos_hogar_sospechosos, 0L),
+      n_capitulos_vivienda_sospechosos = dplyr::coalesce(.data$n_capitulos_vivienda_sospechosos, 0L),
+      n_capitulos_sospechosos = .data$n_capitulos_persona_sospechosos,
+      capitulos_sospechosos = .data$capitulos_persona_sospechosos,
+      capitulos_sospechosos_persona = .data$capitulos_persona_sospechosos,
+      capitulos_sospechosos_hogar = .data$capitulos_hogar_sospechosos,
+      capitulos_sospechosos_vivienda = .data$capitulos_vivienda_sospechosos,
+      nivel_evidencia_sospechosa = dplyr::case_when(
+        .data$n_capitulos_persona_sospechosos > 0L & .data$n_capitulos_hogar_sospechosos > 0L ~
+          "persona | hogar",
+        .data$n_capitulos_persona_sospechosos > 0L ~ "persona",
+        .data$n_capitulos_hogar_sospechosos > 0L ~ "hogar",
+        .data$n_capitulos_vivienda_sospechosos > 0L ~ "vivienda",
+        TRUE ~ "sin_evidencia_capitulos"
+      ),
+      variable_control_hogar_usada = dplyr::if_else(
+        .data$tipo_recuperacion == "ORDEN",
+        "NHCCPCTRL2 > max_orden_E",
+        NA_character_
+      ),
+      control_hogar_sugiere_mas_personas =
+        !is.na(.data$NHCCPCTRL2) &
+        !is.na(.data$max_orden_E) &
+        .data$NHCCPCTRL2 > .data$max_orden_E
+    ) %>%
+    .clasificar_recuperabilidad_sabana()
 
   casos_auditables_llave <- casos_recuperables
   recuperables_potenciales <- casos_recuperables %>%
@@ -953,6 +988,24 @@ construir_sabana_casos_recuperables <- function(
       capitulos_sospechosos = .collapse_tokens_em_completa(
         unlist(strsplit(
           .data$capitulos_sospechosos[!is.na(.data$capitulos_sospechosos)],
+          "\\s*,\\s*"
+        ))
+      ),
+      capitulos_persona_sospechosos = .collapse_tokens_em_completa(
+        unlist(strsplit(
+          .data$capitulos_persona_sospechosos[!is.na(.data$capitulos_persona_sospechosos)],
+          "\\s*,\\s*"
+        ))
+      ),
+      capitulos_hogar_sospechosos = .collapse_tokens_em_completa(
+        unlist(strsplit(
+          .data$capitulos_hogar_sospechosos[!is.na(.data$capitulos_hogar_sospechosos)],
+          "\\s*,\\s*"
+        ))
+      ),
+      capitulos_vivienda_sospechosos = .collapse_tokens_em_completa(
+        unlist(strsplit(
+          .data$capitulos_vivienda_sospechosos[!is.na(.data$capitulos_vivienda_sospechosos)],
           "\\s*,\\s*"
         ))
       ),
@@ -1145,6 +1198,11 @@ construir_sabana_casos_recuperables_desde_diagnostico <- function(
   }
 
   controles_e <- .control_persona_recuperabilidad_sabana(dfs[[cap_per]])
+  fuentes_persona <- .fuentes_llave_nivel_sabana(
+    dfs = dfs,
+    nivel = "persona",
+    casos = personas_no_observadas
+  )
 
   diag_orden_fuera_E <- personas_no_observadas %>%
     normalize_keys(keys_persona) %>%
@@ -1165,15 +1223,22 @@ construir_sabana_casos_recuperables_desde_diagnostico <- function(
     dplyr::left_join(controles_e$directorios_e, by = "DIRECTORIO") %>%
     dplyr::left_join(controles_e$hogares_e, by = c("DIRECTORIO", "SECUENCIA_P")) %>%
     dplyr::left_join(controles_e$resumen_hogar_e, by = c("DIRECTORIO", "SECUENCIA_P")) %>%
+    dplyr::left_join(fuentes_persona, by = keys_persona) %>%
     dplyr::mutate(
       directorio_existe_en_E = dplyr::coalesce(.data$directorio_existe_en_E, FALSE),
       hogar_existe_en_E = dplyr::coalesce(.data$hogar_existe_en_E, FALSE),
+      n_capitulos_persona_sospechosos = dplyr::coalesce(.data$n_capitulos_persona_sospechosos, 0L),
+      tiene_evidencia_persona = .data$n_capitulos_persona_sospechosos > 0L,
       tipo_problema = dplyr::case_when(
         !.data$directorio_existe_en_E ~ "DIRECTORIO no existe en E",
         !.data$hogar_existe_en_E ~ "Hogar no observado en E",
-        !is.na(.data$max_orden_E) & .data$ORDEN_num > .data$max_orden_E ~
+        .data$tiene_evidencia_persona &
+          !is.na(.data$max_orden_E) &
+          .data$ORDEN_num > .data$max_orden_E ~
           "ORDEN mayor que personas observadas en E",
-        TRUE ~ "Persona no observada en E por otra razon"
+        .data$tiene_evidencia_persona ~
+          "Persona no observada en E por otra razon",
+        TRUE ~ "Llave sin evidencia en capitulos persona"
       )
     )
 
@@ -1190,6 +1255,82 @@ construir_sabana_casos_recuperables_desde_diagnostico <- function(
     diag_secuencia = diag_secuencia,
     verificacion_diag = verificacion_diag
   )
+}
+
+.llaves_nivel_sabana_recuperables <- function(nivel) {
+  switch(
+    nivel,
+    vivienda = c("DIRECTORIO"),
+    hogar = c("DIRECTORIO", "SECUENCIA_P"),
+    persona = c("DIRECTORIO", "SECUENCIA_P", "ORDEN"),
+    stop("Nivel no soportado: ", nivel)
+  )
+}
+
+.fuentes_llave_nivel_sabana <- function(dfs, nivel, casos) {
+  keys <- .llaves_nivel_sabana_recuperables(nivel)
+  n_col <- paste0("n_capitulos_", nivel, "_sospechosos")
+  caps_col <- paste0("capitulos_", nivel, "_sospechosos")
+
+  empty <- tibble::as_tibble(stats::setNames(
+    rep(list(character()), length(keys)),
+    keys
+  ))
+  empty[[n_col]] <- integer()
+  empty[[caps_col]] <- character()
+
+  if (!is.list(dfs) || !is.data.frame(casos) || nrow(casos) == 0) {
+    return(empty)
+  }
+
+  casos_keys <- casos %>%
+    normalize_keys(keys) %>%
+    dplyr::select(dplyr::all_of(keys)) %>%
+    dplyr::distinct()
+
+  for (key in keys) {
+    casos_keys <- casos_keys %>%
+      dplyr::filter(!is.na(.data[[key]]), nzchar(.data[[key]]))
+  }
+
+  if (nrow(casos_keys) == 0) {
+    return(empty)
+  }
+
+  caps_nivel <- names(dfs)[vapply(
+    names(dfs),
+    function(cap) {
+      tipo_ok <- !is.null(tipo_capitulo[[cap]]) && identical(tipo_capitulo[[cap]], nivel)
+      keys_cap <- tryCatch(get_join_keys(cap), error = function(e) character())
+      cols_ok <- is.data.frame(dfs[[cap]]) && all(keys_cap %in% names(dfs[[cap]]))
+      tipo_ok && cols_ok
+    },
+    logical(1)
+  )]
+
+  if (length(caps_nivel) == 0) {
+    return(empty)
+  }
+
+  fuentes <- dplyr::bind_rows(lapply(caps_nivel, function(cap) {
+    dfs[[cap]] %>%
+      normalize_keys(keys) %>%
+      dplyr::distinct(dplyr::across(dplyr::all_of(keys))) %>%
+      dplyr::semi_join(casos_keys, by = keys) %>%
+      dplyr::mutate(capitulo_sospechoso = cap)
+  }))
+
+  if (nrow(fuentes) == 0) {
+    return(empty)
+  }
+
+  fuentes %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(keys))) %>%
+    dplyr::summarise(
+      !!n_col := dplyr::n_distinct(.data$capitulo_sospechoso),
+      !!caps_col := .collapse_tokens_em_completa(.data$capitulo_sospechoso),
+      .groups = "drop"
+    )
 }
 
 .construir_controles_recuperabilidad_sabana <- function(dfs,
@@ -1447,6 +1588,9 @@ construir_sabana_casos_recuperables_desde_diagnostico <- function(
       cae_campo = dplyr::coalesce(.data$cae_campo, FALSE),
       cae_duplicado = dplyr::coalesce(.data$cae_duplicado, FALSE),
       cae_tematica = dplyr::coalesce(.data$cae_tematica, FALSE),
+      n_capitulos_persona_sospechosos = dplyr::coalesce(.data$n_capitulos_persona_sospechosos, 0L),
+      n_capitulos_hogar_sospechosos = dplyr::coalesce(.data$n_capitulos_hogar_sospechosos, 0L),
+      control_hogar_sugiere_mas_personas = dplyr::coalesce(.data$control_hogar_sugiere_mas_personas, FALSE),
       bloqueo_campo_hogar =
         .data$hogar_existe_en_C &
         !dplyr::coalesce(.data$hogar_operativo_completo, FALSE),
@@ -1471,6 +1615,8 @@ construir_sabana_casos_recuperables_desde_diagnostico <- function(
           dplyr::coalesce(.data$hogar_operativo_completo, FALSE),
         .data$tipo_recuperacion == "ORDEN" ~
           .data$hogar_existe_en_E &
+          .data$n_capitulos_persona_sospechosos > 0L &
+          .data$control_hogar_sugiere_mas_personas &
           (
             !.data$hogar_existe_en_C |
               dplyr::coalesce(.data$hogar_operativo_completo, FALSE)
@@ -1484,6 +1630,10 @@ construir_sabana_casos_recuperables_desde_diagnostico <- function(
         !.data$tiene_bloqueos_independientes,
       estado_recuperacion = dplyr::case_when(
         .data$recuperable_potencial ~ "recuperable_potencial",
+        .data$tipo_recuperacion == "ORDEN" & .data$n_capitulos_persona_sospechosos == 0L ~
+          "auditable_no_recuperable_sin_evidencia_persona",
+        .data$tipo_recuperacion == "ORDEN" & !.data$control_hogar_sugiere_mas_personas ~
+          "auditable_no_recuperable_control_hogar_no_sugiere_persona",
         .data$bloqueo_campo_hogar ~ "auditable_no_recuperable_campo_hogar",
         .data$bloqueo_campo_persona ~ "auditable_no_recuperable_campo_persona",
         .data$bloqueo_lina_persona ~ "auditable_no_recuperable_lina_persona",
@@ -1501,6 +1651,15 @@ construir_sabana_casos_recuperables_desde_diagnostico <- function(
       motivo_estado_recuperacion = dplyr::case_when(
         .data$recuperable_potencial ~
           "El desajuste de llave es compatible con las caidas observadas y no se detectan bloqueos independientes.",
+        .data$tipo_recuperacion == "ORDEN" & .data$n_capitulos_persona_sospechosos == 0L ~
+          "El ORDEN sospechoso no aparece en capitulos persona reales; la evidencia de capitulos hogar no crea personas recuperables.",
+        .data$tipo_recuperacion == "ORDEN" & !.data$control_hogar_sugiere_mas_personas ~ paste0(
+          "El control de hogar no sugiere personas adicionales: NHCCPCTRL2=",
+          .texto_valor_sabana_recuperables(.data$NHCCPCTRL2),
+          " y max_orden_E=",
+          .texto_valor_sabana_recuperables(.data$max_orden_E),
+          "."
+        ),
         .data$bloqueo_campo_hogar ~ paste0(
           "Hogar no recuperable por campo: NHCCPCTRL1=",
           .texto_valor_sabana_recuperables(.data$NHCCPCTRL1),
