@@ -24,47 +24,81 @@ diagnostico_imputacion_variable(
 
 \item{variable_objetivo}{Nombre de la variable objetivo a diagnosticar.}
 
-\item{codigos_validos}{Vector con los codigos considerados informacion valida para \code{variable_objetivo}.}
+\item{codigos_validos}{Vector con los codigos considerados informacion
+valida para \code{variable_objetivo}.}
 
-\item{expresion_universo}{Expresion logica que define quien debia responder la variable objetivo. Se evalua sobre la base armada con trazadoras.}
+\item{expresion_universo}{Expresion logica que define quien debia responder
+la variable objetivo. Se evalua sobre la base armada con trazadoras.}
 
-\item{trazadoras}{Tibble o data frame con columnas \code{var}, \code{cap} y \code{alias}, compatible con \code{armar_base_con_trazadoras()}.}
+\item{trazadoras}{Tibble o data frame con columnas \code{var}, \code{cap} y
+\code{alias}, compatible con \code{armar_base_con_trazadoras()}.}
 
-\item{variables_analisis}{Vector de variables auxiliares a tabular. Puede ser un vector simple, por ejemplo \code{c("sexo", "grupo_edad")}, o un vector nombrado donde el nombre es el alias de salida y el valor es la variable origen, por ejemplo \code{c(sexo = "sexo_codigo")}.}
+\item{variables_analisis}{Vector de variables auxiliares a tabular. Puede ser
+un vector simple, por ejemplo \code{c("sexo", "grupo_edad")}, o un vector
+nombrado donde el nombre es el alias de salida y el valor es la variable
+origen, por ejemplo \code{c(sexo = "sexo_codigo")}.}
 
-\item{etiquetas}{Lista nombrada opcional. Cada elemento debe corresponder a una variable auxiliar y puede ser un vector nombrado codigo -> etiqueta. Los codigos no mapeados quedan como \code{"Otro código"} y los valores vacios o \code{NA} quedan como \code{"No informado"}. Tambien se admite una funcion que reciba el vector origen y devuelva etiquetas, util para agrupar edades.}
+\item{etiquetas}{Lista nombrada opcional. Cada elemento debe corresponder a
+una variable auxiliar y puede ser un vector nombrado codigo -> etiqueta. Los
+codigos no mapeados quedan como \code{"Otro código"} y los valores vacios o
+\code{NA} quedan como \code{"No informado"}. Tambien se admite una funcion
+que reciba el vector origen y devuelva etiquetas, util para agrupar edades.}
 
-\item{excluir_no_informado}{Logico. Si es \code{TRUE}, excluye la categoria \code{"No informado"} de las tablas comparativas, del indice de disimilitud y de las graficas. La base diagnostica conserva los datos originales.}
+\item{excluir_no_informado}{Logico. Si es \code{TRUE}, excluye la categoria
+\code{"No informado"} de las tablas comparativas, del indice de
+disimilitud y de las graficas. La base diagnostica conserva los datos
+originales.}
 
-\item{generar_graficos}{Logico. Si es \code{TRUE}, genera objetos interactivos \code{plotly} para cada variable auxiliar.}
+\item{generar_graficos}{Logico. Si es \code{TRUE}, genera objetos
+interactivos \code{plotly} para cada variable auxiliar.}
 }
 \value{
 Una lista con:
 \describe{
-\item{data}{Base diagnostica con \code{debe_responder}, \code{tiene_info}, \code{tiene_codigo_valido} y \code{grupo_imputacion}.}
+\item{data}{Base diagnostica con \code{debe_responder},
+\code{tiene_info}, \code{tiene_codigo_valido} y
+\code{grupo_imputacion}.}
 \item{resumen_variable_objetivo}{Tabla resumen por grupo de imputacion.}
-\item{resumen_armado}{Resumen devuelto por \code{armar_base_con_trazadoras()}.}
-\item{diagnosticos}{Lista nombrada por variable auxiliar con perfil, tabla ancha, tabla para graficar, indice de disimilitud, deltas, tasas y graficas.}
+\item{resumen_armado}{Resumen devuelto por
+\code{armar_base_con_trazadoras()}.}
+\item{diagnosticos}{Lista nombrada por variable auxiliar con perfil,
+tabla ancha, tabla para graficar, indice de disimilitud, deltas, tasas y
+graficas.}
 }
 }
 \description{
-Construye una base diagnostica para una variable objetivo, separando las unidades que debian responder con informacion valida de aquellas que debian responder pero no tienen un codigo valido. Luego compara ambos grupos frente a variables auxiliares o trazadoras para evaluar si la no respuesta parece aleatoria o condicionada por perfiles observables.
+Construye una base diagnostica para una variable objetivo, separando las
+unidades que debian responder con informacion valida de aquellas que debian
+responder pero no tienen un codigo valido. Luego compara ambos grupos frente
+a variables auxiliares o trazadoras para evaluar si la no respuesta parece
+aleatoria o condicionada por perfiles observables.
 }
 \details{
-La funcion usa \code{armar_base_con_trazadoras()} para integrar variables de otros capitulos con las llaves definidas por el paquete. La clasificacion de \code{grupo_imputacion} se define asi:
+La funcion usa \code{armar_base_con_trazadoras()} para integrar variables de
+otros capitulos con las llaves definidas por el paquete. La clasificacion de
+\code{grupo_imputacion} se define asi:
 \itemize{
-\item \code{"Con información"}: esta dentro del universo esperado y \code{variable_objetivo} tiene un codigo valido.
-\item \code{"Sin información"}: esta dentro del universo esperado y \code{variable_objetivo} no tiene un codigo valido.
+\item \code{"Con información"}: esta dentro del universo esperado y
+\code{variable_objetivo} tiene un codigo valido.
+\item \code{"Sin información"}: esta dentro del universo esperado y
+\code{variable_objetivo} no tiene un codigo valido.
 \item \code{"Fuera del universo"}: no cumple la expresion de universo.
 }
 
-Para cada variable auxiliar se calculan conteos, porcentajes dentro de cada grupo, tabla ancha de distribuciones entre \code{"Con información"} y \code{"Sin información"}, diferencias en puntos porcentuales y tasa de ausencia de la variable objetivo por categoria.
+Para cada variable auxiliar se calculan conteos, porcentajes dentro de cada
+grupo, tabla ancha de distribuciones entre \code{"Con información"} y
+\code{"Sin información"}, diferencias en puntos porcentuales y tasa de
+ausencia de la variable objetivo por categoria.
 
-El indice de disimilitud compara las distribuciones porcentuales de los grupos \code{"Con información"} y \code{"Sin información"}:
+El indice de disimilitud compara las distribuciones porcentuales de los
+grupos \code{"Con información"} y \code{"Sin información"}:
 
 \deqn{D = \frac{1}{2} \sum_i |p_{i,sin} - p_{i,con}|}
 
-donde \eqn{p_{i,sin}} y \eqn{p_{i,con}} son las proporciones de la categoria \eqn{i} dentro de cada grupo. Valores cercanos a 0 indican perfiles similares; valores mas altos sugieren que la ausencia de informacion esta asociada con la variable auxiliar.
+donde \eqn{p_{i,sin}} y \eqn{p_{i,con}} son las proporciones de la categoria
+\eqn{i} dentro de cada grupo. Valores cercanos a 0 indican perfiles
+similares; valores mas altos sugieren que la ausencia de informacion esta
+asociada con la variable auxiliar.
 }
 \examples{
 \dontrun{
@@ -77,12 +111,72 @@ trazadoras_k23 <- tibble::tribble(
   "NPCHP4",  "H",  "nivel_educativo"
 )
 
+etiquetas_k23 <- list(
+  sexo_codigo = c("1" = "Hombre", "2" = "Mujer"),
+  clase = c(
+    "1" = "Urbano",
+    "2" = "Centro poblado",
+    "3" = "Rural disperso"
+  ),
+  regimen_salud = c(
+    "1" = "Contributivo",
+    "3" = "Subsidiado",
+    "2" = "Especial / excepcion",
+    "9" = "No sabe / no informa"
+  ),
+  nivel_educativo = c(
+    "1" = "Ninguno",
+    "2" = "Preescolar",
+    "3" = "Basica primaria",
+    "4" = "Basica secundaria",
+    "5" = "Media",
+    "6" = "Tecnico",
+    "7" = "Tecnologico",
+    "8" = "Universitaria incompleta",
+    "9" = "Universitaria completa",
+    "10" = "Especializacion incompleta",
+    "11" = "Especializacion completa",
+    "12" = "Maestria incompleta",
+    "13" = "Maestria completa",
+    "14" = "Doctorado incompleto",
+    "15" = "Doctorado completo"
+  ),
+  grupo_edad = function(edad) {
+    edad <- suppressWarnings(as.numeric(edad))
+    factor(
+      dplyr::case_when(
+        edad >= 10 & edad <= 17 ~ "10-17",
+        edad >= 18 & edad <= 24 ~ "18-24",
+        edad >= 25 & edad <= 34 ~ "25-34",
+        edad >= 35 & edad <= 44 ~ "35-44",
+        edad >= 45 & edad <= 54 ~ "45-54",
+        edad >= 55 & edad <= 64 ~ "55-64",
+        edad >= 65 ~ "65+",
+        TRUE ~ "No informado"
+      ),
+      levels = c("10-17", "18-24", "25-34", "35-44",
+                 "45-54", "55-64", "65+", "No informado")
+    )
+  }
+)
+
 res_k23 <- diagnostico_imputacion_variable(
   dfs = dfs,
   base_cap = "K",
   variable_objetivo = "NPCKP17",
   codigos_validos = as.character(1:8),
-  expresion_universo = edad >= 10,
+  expresion_universo =
+    edad >= 10 &
+    (
+      as.character(NPCKP1) == "1" & as.character(NPCKP2_1) == "1" |
+        as.character(NPCKP2) == "1" |
+        as.character(NPCKP3) == "1" &
+          as.character(NPCKP5_1) \%in\% c("1", "2", "3", "4") |
+        as.character(NPCKP3) == "1" &
+          as.character(NPCKP5_1) \%in\% c("5", "6", "7", "8") &
+          as.character(NPCKP6_1) == "1" |
+        as.character(NPCKP4) == "1"
+    ),
   trazadoras = trazadoras_k23,
   variables_analisis = c(
     grupo_edad = "edad",
@@ -93,10 +187,12 @@ res_k23 <- diagnostico_imputacion_variable(
   ),
   etiquetas = etiquetas_k23,
   excluir_no_informado = TRUE,
-  generar_graficos = FALSE
+  generar_graficos = TRUE
 )
 
 res_k23$resumen_variable_objetivo
 res_k23$diagnosticos$grupo_edad$disimilitud
+res_k23$diagnosticos$nivel_educativo_lbl$delta
 }
+
 }

@@ -49,6 +49,60 @@ Nunca hacer joins sin especificar explícitamente estas llaves.
 
 ---
 
+## Naturaleza del capítulo y uso de llaves (CRÍTICO)
+
+Las llaves de cruce deben definirse según la naturaleza del capítulo y el nivel operativo al que pertenece la información, no únicamente según las columnas que aparezcan disponibles en la tabla.
+
+Regla por nivel:
+
+- Capítulos de vivienda: usar `DIRECTORIO`
+- Capítulos de hogar: usar `DIRECTORIO + SECUENCIA_P`
+- Capítulos de persona: usar `DIRECTORIO + SECUENCIA_P + ORDEN`
+
+### Regla crítica sobre `ORDEN`
+
+`ORDEN` solo tiene interpretación sustantiva en capítulos de persona.
+
+En capítulos de vivienda o de hogar, `ORDEN` no debe interpretarse como identificador de persona, aunque la variable exista en la base por razones de estructura, arrastre, exportación, formato o integración operativa.
+
+Por tanto:
+
+- No usar `ORDEN` para hacer joins de capítulos de vivienda.
+- No usar `ORDEN` para hacer joins de capítulos de hogar.
+- No usar `ORDEN` para diagnosticar faltantes o caídas en capítulos que no son de persona.
+- No usar `ORDEN` para recuperar casos cuando la fuente de información proviene de capítulos de vivienda u hogar.
+- No concluir que una persona está presente, ausente o recuperable a partir de `ORDEN` en capítulos no personales.
+
+### Riesgo metodológico
+
+Usar `ORDEN` fuera de capítulos de persona puede generar:
+
+- falsos diagnósticos de pérdida;
+- falsas inconsistencias entre capítulos;
+- duplicaciones por joins indebidos;
+- recuperaciones incorrectas de personas;
+- clasificación errónea de encuestas como completas, incompletas o recuperables.
+
+### Protocolo obligatorio para el agente
+
+Antes de cualquier cruce, validación o diagnóstico entre capítulos, el agente debe identificar explícitamente:
+
+1. cuál es el capítulo fuente;
+2. cuál es la naturaleza del capítulo: vivienda, hogar o persona;
+3. cuál es la llave válida para ese capítulo;
+4. si el uso de `ORDEN` está justificado por tratarse de un capítulo de persona.
+
+Si el agente detecta código que utiliza `ORDEN` en capítulos de vivienda u hogar, debe:
+
+- detenerse;
+- reportar el archivo, función y línea donde ocurre;
+- explicar por qué puede ser riesgoso;
+- no modificar la lógica automáticamente sin aprobación explícita del usuario.
+
+Esta regla es especialmente importante en diagnósticos de completitud, clasificación de encuestas caídas, identificación de casos recuperables y cruces entre capítulos.
+
+---
+
 ## Convenciones de variables
 
 Variables comunes:

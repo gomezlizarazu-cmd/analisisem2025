@@ -61,8 +61,8 @@ auditadas y tipos de recuperacion.}
 \description{
 Consolida en una sabana de auditoria los casos con desajustes de llave
 detectados en la validacion de flujo persona, separando problemas de
-\code{SECUENCIA_P} y de \code{ORDEN}, y exportando todas las filas de los
-capitulos involucrados para los \code{DIRECTORIO} afectados.
+\code{SECUENCIA_P} y de \code{ORDEN}, y exportando todas las filas de los capitulos
+involucrados para los \code{DIRECTORIO} afectados.
 }
 \details{
 La funcion no modifica la logica productiva del paquete. Su proposito es
@@ -76,14 +76,13 @@ Si se entrega \code{diag_con_tematica} o \code{reporte_final_caidas}, la funcion
 banderas de recuperabilidad. Un caso solo queda como
 \code{recuperable_potencial} cuando el desajuste de llave puede explicar la caida
 y no se observan bloqueos independientes de campo, duplicados o tematica. Por
-ejemplo, un hogar no observado en \code{E} no es recuperable si en el capitulo
-\code{C} tiene \code{NHCCPCTRL1 != 1} o \code{RES_HOG != 1}.
+ejemplo, un hogar no observado en \code{E} no es recuperable si en el capitulo \code{C}
+tiene \code{NHCCPCTRL1 != 1} o \code{RES_HOG != 1}.
 
 Para cada \code{DIRECTORIO} auditable, la exportacion incluye todas las filas de
 cada capitulo presente en \code{dfs}, junto con hojas de control:
 \code{casos_recuperables}, \code{casos_auditables_llave},
-\code{recuperables_potenciales}, \code{no_recuperables} y
-\code{resumen_directorios}.
+\code{recuperables_potenciales}, \code{no_recuperables} y \code{resumen_directorios}.
 }
 \examples{
 \dontrun{
