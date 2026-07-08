@@ -7,6 +7,9 @@
 #' @param dfs Lista de data frames con los capitulos de la encuesta.
 #' @param reporte_final_caidas Data frame consolidado con las variables de
 #'   caida por encuesta/persona.
+#' @param validar_preservacion Logico. Si `TRUE`, valida que las variables
+#'   originales se preserven despues del filtrado y detiene la ejecucion ante
+#'   alteraciones graves de clase, dominio o valor.
 #'
 #' @details
 #' Una encuesta completa se define como aquella cuyo `DIRECTORIO` no presenta
@@ -49,7 +52,9 @@
 #' }
 #'
 #' @export
-construir_base_em_completa <- function(dfs, reporte_final_caidas) {
+construir_base_em_completa <- function(dfs,
+                                       reporte_final_caidas,
+                                       validar_preservacion = TRUE) {
   if (!is.list(dfs)) {
     stop("`dfs` debe ser una lista de data frames.")
   }
@@ -127,11 +132,48 @@ construir_base_em_completa <- function(dfs, reporte_final_caidas) {
       registros_excluidos = .data$registros_antes - .data$registros_despues
     )
 
+  validacion_preservacion <- if (isTRUE(validar_preservacion)) {
+    validar_preservacion_variables(
+      dfs_original = dfs,
+      dfs_resultado = dfs_em_completa
+    )
+  } else {
+    tibble::tibble()
+  }
+
+  if (
+    isTRUE(validar_preservacion) &&
+      nrow(validacion_preservacion) > 0 &&
+      any(validacion_preservacion$alerta_grave, na.rm = TRUE)
+  ) {
+    problemas <- validacion_preservacion %>%
+      dplyr::filter(.data$alerta_grave) %>%
+      dplyr::mutate(id = paste0(.data$capitulo, "$", .data$variable, " [", .data$alerta, "]")) %>%
+      dplyr::pull(.data$id) %>%
+      utils::head(12)
+
+    stop(
+      "ERROR: Se detecto alteracion de variables originales en la base completa. ",
+      "Revise `validacion_preservacion`. Primeras alertas: ",
+      paste(problemas, collapse = "; "),
+      call. = FALSE
+    )
+  }
+
+  if (isTRUE(validar_preservacion)) {
+    message(
+      "Base EM completa construida preservando variables originales: ",
+      nrow(validacion_preservacion),
+      " variables auditadas sin alertas graves."
+    )
+  }
+
   list(
     dfs = dfs_em_completa,
     resumen = resumen_em_completa,
     directorios_excluidos = directorios_excluidos,
-    n_encuestas_excluidas = length(directorios_excluidos)
+    n_encuestas_excluidas = length(directorios_excluidos),
+    validacion_preservacion = validacion_preservacion
   )
 }
 
@@ -150,6 +192,237 @@ construir_base_em_completa <- function(dfs, reporte_final_caidas) {
   }
 
   dplyr::coalesce(as.logical(x), FALSE)
+}
+
+#' Validar preservacion de variables originales
+#'
+#' Compara una lista de capitulos original contra una lista resultado filtrada
+#' para confirmar que las variables originales conservadas no cambien de clase,
+#' dominio ni valor para las llaves que permanecen en la base resultado.
+#'
+#' @param dfs_original Lista original de capitulos.
+#' @param dfs_resultado Lista resultado a validar.
+#' @param keys_por_capitulo Lista nombrada opcional con llaves por capitulo. Si
+#'   es `NULL`, se usan las llaves configuradas por el paquete y, como reserva,
+#'   las llaves presentes en cada tabla.
+#'
+#' @return Tibble con una fila por capitulo-variable y columnas de diagnostico:
+#'   `capitulo`, `variable`, `clase_original`, `clase_resultado`,
+#'   `n_diferencias_valor`, `valores_originales`, `valores_resultado`,
+#'   `alerta` y `alerta_grave`.
+#'
+#' @export
+validar_preservacion_variables <- function(dfs_original,
+                                           dfs_resultado,
+                                           keys_por_capitulo = NULL) {
+  if (!is.list(dfs_original) || !is.list(dfs_resultado)) {
+    stop("`dfs_original` y `dfs_resultado` deben ser listas de data frames.", call. = FALSE)
+  }
+
+  caps <- intersect(names(dfs_original), names(dfs_resultado))
+  if (length(caps) == 0) {
+    return(.preservacion_tbl_vacio())
+  }
+
+  dplyr::bind_rows(lapply(caps, function(cap) {
+    .validar_preservacion_capitulo(
+      capitulo = cap,
+      original = dfs_original[[cap]],
+      resultado = dfs_resultado[[cap]],
+      keys = .resolver_keys_preservacion(
+        capitulo = cap,
+        original = dfs_original[[cap]],
+        resultado = dfs_resultado[[cap]],
+        keys_por_capitulo = keys_por_capitulo
+      )
+    )
+  }))
+}
+
+.validar_preservacion_capitulo <- function(capitulo, original, resultado, keys) {
+  if (!is.data.frame(original) || !is.data.frame(resultado)) {
+    return(tibble::tibble(
+      capitulo = capitulo,
+      variable = NA_character_,
+      clase_original = class(original)[1],
+      clase_resultado = class(resultado)[1],
+      n_diferencias_valor = NA_integer_,
+      valores_originales = NA_character_,
+      valores_resultado = NA_character_,
+      alerta = "capitulo_no_data_frame",
+      alerta_grave = TRUE
+    ))
+  }
+
+  dup_original <- names(original)[duplicated(names(original))]
+  dup_resultado <- names(resultado)[duplicated(names(resultado))]
+  alertas_dup <- dplyr::bind_rows(
+    .fila_alerta_preservacion(capitulo, unique(dup_original), "duplicada_en_original"),
+    .fila_alerta_preservacion(capitulo, unique(dup_resultado), "duplicada_en_resultado")
+  )
+
+  faltan_keys <- setdiff(keys, names(original))
+  faltan_keys <- union(faltan_keys, setdiff(keys, names(resultado)))
+  if (length(faltan_keys) > 0) {
+    return(dplyr::bind_rows(
+      alertas_dup,
+      tibble::tibble(
+        capitulo = capitulo,
+        variable = faltan_keys,
+        clase_original = NA_character_,
+        clase_resultado = NA_character_,
+        n_diferencias_valor = NA_integer_,
+        valores_originales = NA_character_,
+        valores_resultado = NA_character_,
+        alerta = "llave_faltante",
+        alerta_grave = TRUE
+      )
+    ))
+  }
+
+  columnas_originales <- names(original)
+  faltantes_resultado <- setdiff(columnas_originales, names(resultado))
+  variables_comunes <- intersect(columnas_originales, names(resultado))
+  variables_comunes <- setdiff(variables_comunes, keys)
+
+  alertas_faltantes <- .fila_alerta_preservacion(
+    capitulo = capitulo,
+    variables = faltantes_resultado,
+    alerta = "variable_original_faltante"
+  )
+
+  if (length(variables_comunes) == 0) {
+    return(dplyr::bind_rows(alertas_dup, alertas_faltantes))
+  }
+
+  original_norm <- normalize_keys(original, keys)
+  resultado_norm <- normalize_keys(resultado, keys)
+
+  original_keys <- original_norm %>%
+    dplyr::semi_join(
+      resultado_norm %>% dplyr::select(dplyr::all_of(keys)),
+      by = keys
+    )
+
+  dplyr::bind_rows(
+    alertas_dup,
+    alertas_faltantes,
+    lapply(variables_comunes, function(var) {
+      .comparar_variable_preservacion(
+        capitulo = capitulo,
+        variable = var,
+        original = original_keys,
+        resultado = resultado_norm,
+        keys = keys
+      )
+    })
+  )
+}
+
+.comparar_variable_preservacion <- function(capitulo, variable, original, resultado, keys) {
+  original_var <- original %>%
+    dplyr::select(dplyr::all_of(c(keys, variable))) %>%
+    dplyr::rename(valor_original = dplyr::all_of(variable))
+  resultado_var <- resultado %>%
+    dplyr::select(dplyr::all_of(c(keys, variable))) %>%
+    dplyr::rename(valor_resultado = dplyr::all_of(variable))
+
+  comparacion <- resultado_var %>%
+    dplyr::left_join(original_var, by = keys)
+
+  valor_original_chr <- .valor_preservacion_chr(comparacion$valor_original)
+  valor_resultado_chr <- .valor_preservacion_chr(comparacion$valor_resultado)
+  difiere <- xor(is.na(valor_original_chr), is.na(valor_resultado_chr)) |
+    (!is.na(valor_original_chr) & !is.na(valor_resultado_chr) & valor_original_chr != valor_resultado_chr)
+
+  clase_original <- paste(class(original[[variable]]), collapse = "/")
+  clase_resultado <- paste(class(resultado[[variable]]), collapse = "/")
+  clase_cambia <- !identical(class(original[[variable]]), class(resultado[[variable]]))
+  conversion_logica <- is.logical(resultado[[variable]]) && !is.logical(original[[variable]])
+  diferencias <- sum(difiere, na.rm = TRUE)
+
+  alerta <- dplyr::case_when(
+    conversion_logica ~ "conversion_a_logical",
+    clase_cambia ~ "clase_cambia",
+    diferencias > 0 ~ "valor_cambia",
+    TRUE ~ "ok"
+  )
+
+  tibble::tibble(
+    capitulo = capitulo,
+    variable = variable,
+    clase_original = clase_original,
+    clase_resultado = clase_resultado,
+    n_diferencias_valor = as.integer(diferencias),
+    valores_originales = .resumir_valores_preservacion(original[[variable]]),
+    valores_resultado = .resumir_valores_preservacion(resultado[[variable]]),
+    alerta = alerta,
+    alerta_grave = alerta != "ok"
+  )
+}
+
+.resolver_keys_preservacion <- function(capitulo, original, resultado, keys_por_capitulo = NULL) {
+  if (!is.null(keys_por_capitulo) && capitulo %in% names(keys_por_capitulo)) {
+    return(keys_por_capitulo[[capitulo]])
+  }
+
+  keys_config <- tryCatch(get_join_keys(capitulo), error = function(e) character())
+  keys_config <- intersect(keys_config, intersect(names(original), names(resultado)))
+  if (length(keys_config) > 0) {
+    return(keys_config)
+  }
+
+  posibles <- c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+  intersect(posibles, intersect(names(original), names(resultado)))
+}
+
+.fila_alerta_preservacion <- function(capitulo, variables, alerta) {
+  variables <- variables[!is.na(variables) & nzchar(variables)]
+  if (length(variables) == 0) {
+    return(.preservacion_tbl_vacio())
+  }
+
+  tibble::tibble(
+    capitulo = capitulo,
+    variable = variables,
+    clase_original = NA_character_,
+    clase_resultado = NA_character_,
+    n_diferencias_valor = NA_integer_,
+    valores_originales = NA_character_,
+    valores_resultado = NA_character_,
+    alerta = alerta,
+    alerta_grave = TRUE
+  )
+}
+
+.preservacion_tbl_vacio <- function() {
+  tibble::tibble(
+    capitulo = character(),
+    variable = character(),
+    clase_original = character(),
+    clase_resultado = character(),
+    n_diferencias_valor = integer(),
+    valores_originales = character(),
+    valores_resultado = character(),
+    alerta = character(),
+    alerta_grave = logical()
+  )
+}
+
+.valor_preservacion_chr <- function(x) {
+  x_chr <- as.character(x)
+  x_chr[is.na(x)] <- NA_character_
+  x_chr
+}
+
+.resumir_valores_preservacion <- function(x, n = 12L) {
+  vals <- unique(.valor_preservacion_chr(x))
+  vals <- vals[!is.na(vals)]
+  if (length(vals) == 0) {
+    return(NA_character_)
+  }
+  vals <- utils::head(sort(vals), n)
+  paste(vals, collapse = ", ")
 }
 
 #' Verificar coherencia de universos en la base de encuestas completas

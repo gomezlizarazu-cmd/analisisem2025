@@ -92,6 +92,7 @@ agregar_municipios <- function(dfs,
 
   # Renombrar diccionario a nombre_salida
   dic_use <- dic_mpios %>%
+    dplyr::mutate(cod_mpio = .normalizar_codigo_mpio_join(.data$cod_mpio)) %>%
     dplyr::rename(!!nombre_salida := municipio)
 
   # Función interna para un solo data frame
@@ -112,6 +113,12 @@ agregar_municipios <- function(dfs,
 
     # Join
     df %>%
+      dplyr::mutate(
+        dplyr::across(
+          dplyr::all_of(var_mpio_local),
+          .normalizar_codigo_mpio_join
+        )
+      ) %>%
       dplyr::left_join(
         dic_use,
         by = stats::setNames("cod_mpio", var_mpio_local)
@@ -132,4 +139,18 @@ agregar_municipios <- function(dfs,
 
   dfs[[cap]] <- pegar_en_df(dfs[[cap]], var_mpio_local = var_mpio)
   dfs
+}
+
+.normalizar_codigo_mpio_join <- function(x) {
+  x <- as.character(x)
+  x <- stringr::str_squish(x)
+  x <- stringr::str_replace_all(x, ",", "")
+  x <- stringr::str_replace(x, "\\.0+$", "")
+  x <- dplyr::if_else(
+    !is.na(x) & stringr::str_detect(x, "^[0-9]+$") & nchar(x) <= 5,
+    stringr::str_pad(x, width = 5, pad = "0"),
+    x
+  )
+  x[x == ""] <- NA_character_
+  x
 }

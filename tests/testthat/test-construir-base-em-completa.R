@@ -116,6 +116,96 @@ test_that("compatibilidad con una o varias variables de caida", {
   expect_setequal(res_completo$dfs$A$DIRECTORIO, "1001")
 })
 
+test_that("construir_base_em_completa preserva dominios originales de variables K sensibles", {
+  dfs <- list(
+    A = tibble::tibble(
+      DIRECTORIO = c("1001", "1002", "1003"),
+      VAR_A = c("a1", "a2", "a3")
+    ),
+    K = tibble::tibble(
+      DIRECTORIO = c("1001", "1002", "1003"),
+      SECUENCIA_P = c("1", "1", "1"),
+      ORDEN = c("1", "1", "1"),
+      NPCKP5_1 = c(1L, 5L, 8L),
+      NPCKP6_1 = c(NA_integer_, 2L, 3L),
+      NPCKP1 = c(1L, 2L, 5L),
+      NPCKP2_1 = c(1L, 2L, NA_integer_),
+      NPCKP2 = c(1L, 2L, NA_integer_),
+      NPCKP3 = c(1L, 1L, 2L),
+      NPCKP4 = c(NA_integer_, 1L, 2L),
+      NPCKP5 = c(1L, 2L, NA_integer_),
+      NPCKP6 = c(7L, NA_integer_, NA_integer_),
+      NPCKP7 = c(1L, 2L, NA_integer_),
+      NPCKP8 = c(2L, 13L, NA_integer_),
+      NPCKP17 = c(1L, 6L, NA_integer_)
+    )
+  )
+
+  reporte_final_caidas <- tibble::tibble(
+    DIRECTORIO = c("1001", "1002", "1003"),
+    cae_existencia = c(FALSE, TRUE, FALSE)
+  )
+
+  res <- construir_base_em_completa(
+    dfs = dfs,
+    reporte_final_caidas = reporte_final_caidas
+  )
+
+  vars_k_sensibles <- c(
+    "NPCKP5_1", "NPCKP6_1", "NPCKP1", "NPCKP2_1", "NPCKP2",
+    "NPCKP3", "NPCKP4", "NPCKP5", "NPCKP6", "NPCKP7", "NPCKP8", "NPCKP17"
+  )
+
+  validacion_k <- res$validacion_preservacion %>%
+    dplyr::filter(.data$capitulo == "K", .data$variable %in% vars_k_sensibles)
+
+  expect_equal(nrow(validacion_k), length(vars_k_sensibles))
+  expect_false(any(validacion_k$alerta_grave))
+  expect_false(any(vapply(res$dfs$K[vars_k_sensibles], is.logical, logical(1))))
+
+  k_original_conservada <- dfs$K %>%
+    normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
+    dplyr::semi_join(
+      res$dfs$K %>% dplyr::select(DIRECTORIO, SECUENCIA_P, ORDEN),
+      by = c("DIRECTORIO", "SECUENCIA_P", "ORDEN")
+    ) %>%
+    dplyr::arrange(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN)
+  k_resultado <- res$dfs$K %>%
+    normalize_keys(c("DIRECTORIO", "SECUENCIA_P", "ORDEN")) %>%
+    dplyr::arrange(.data$DIRECTORIO, .data$SECUENCIA_P, .data$ORDEN)
+
+  expect_identical(k_resultado$NPCKP5_1, k_original_conservada$NPCKP5_1)
+  expect_identical(k_resultado$NPCKP6_1, k_original_conservada$NPCKP6_1)
+})
+
+test_that("validar_preservacion_variables detecta variables K convertidas a logico", {
+  dfs_original <- list(
+    K = tibble::tibble(
+      DIRECTORIO = c("1001", "1002"),
+      SECUENCIA_P = c("1", "1"),
+      ORDEN = c("1", "1"),
+      NPCKP5_1 = c(1L, 5L),
+      NPCKP6_1 = c(NA_integer_, 2L)
+    )
+  )
+  dfs_resultado <- list(
+    K = tibble::tibble(
+      DIRECTORIO = c("1001", "1002"),
+      SECUENCIA_P = c("1", "1"),
+      ORDEN = c("1", "1"),
+      NPCKP5_1 = c(TRUE, FALSE),
+      NPCKP6_1 = c(FALSE, TRUE)
+    )
+  )
+
+  validacion <- validar_preservacion_variables(dfs_original, dfs_resultado)
+  sensibles <- validacion %>%
+    dplyr::filter(.data$capitulo == "K", .data$variable %in% c("NPCKP5_1", "NPCKP6_1"))
+
+  expect_true(all(sensibles$alerta_grave))
+  expect_setequal(sensibles$alerta, "conversion_a_logical")
+})
+
 test_that("verificacion correcta conserva universos en vivienda hogar y persona", {
   dfs <- make_dfs_em_completa_mock()
 

@@ -360,19 +360,36 @@ leer_tabla_flexible <- function(path) {
   ext <- tolower(tools::file_ext(path))
 
   if (ext %in% c("csv")) {
-    return(readr::read_csv(path, show_col_types = FALSE, progress = FALSE))
+    return(
+      readr::read_csv(
+        path,
+        col_types = readr::cols(.default = readr::col_character()),
+        na = c("", "NA"),
+        show_col_types = FALSE,
+        progress = FALSE
+      )
+    )
   }
 
   if (ext %in% c("xlsx", "xls")) {
     return(
-      readxl::read_excel(path) %>%
+      readxl::read_excel(path, col_types = "text", na = c("", "NA")) %>%
         as.data.frame() %>%
         tibble::as_tibble()
     )
   }
 
   if (ext %in% c("txt", "tsv")) {
-    return(readr::read_delim(path, delim = "\t", show_col_types = FALSE, progress = FALSE))
+    return(
+      readr::read_delim(
+        path,
+        delim = "\t",
+        col_types = readr::cols(.default = readr::col_character()),
+        na = c("", "NA"),
+        show_col_types = FALSE,
+        progress = FALSE
+      )
+    )
   }
 
   stop(paste0("Extensión no soportada: ", ext, " | archivo: ", basename(path)))
@@ -480,6 +497,23 @@ cargar_capitulos_por_fecha <- function(
   caps_presentes <- intersect(orden_caps, names(dfs))
   dfs <- dfs[caps_presentes]
 
+  diagnostico_logical <- diagnosticar_variables_logicas(dfs)
+
+  if (nrow(diagnostico_logical) > 0) {
+    primeras <- diagnostico_logical %>%
+      dplyr::mutate(variable = paste0(.data$capitulo, "$", .data$variable)) %>%
+      dplyr::pull(.data$variable) %>%
+      utils::head(10)
+
+    stop(
+      paste0(
+        "Se detectaron variables logicas en capitulos crudos cargados desde CAP_*. ",
+        "La carga debe preservar variables originales como character. Primeras variables: ",
+        paste(primeras, collapse = ", ")
+      )
+    )
+  }
+
   resumen_carga <- tibble::tibble(
     cap = names(dfs),
     n = vapply(dfs, nrow, integer(1)),
@@ -490,6 +524,48 @@ cargar_capitulos_por_fecha <- function(
     dfs = dfs,
     resumen_carga = resumen_carga,
     carpeta_caps = carpeta_caps,
-    archivos = archivos
+    archivos = archivos,
+    diagnostico_logical = diagnostico_logical
   )
+}
+
+#' Diagnosticar variables logicas en capitulos cargados
+#'
+#' Identifica columnas con clase \code{logical} dentro de una lista de
+#' capitulos. En capitulos crudos cargados desde archivos \code{CAP_*}, una
+#' columna logica suele indicar inferencia automatica de tipos y debe revisarse.
+#'
+#' @param dfs Lista nombrada de data frames de capitulos.
+#'
+#' @return Tibble con \code{capitulo}, \code{variable} y \code{clase}.
+#'
+#' @examples
+#' diagnosticar_variables_logicas(list(A = data.frame(x = c(TRUE, FALSE))))
+#'
+#' @export
+diagnosticar_variables_logicas <- function(dfs) {
+  if (is.null(dfs) || !is.list(dfs) || length(dfs) == 0) {
+    return(tibble::tibble(
+      capitulo = character(),
+      variable = character(),
+      clase = character()
+    ))
+  }
+
+  purrr::imap_dfr(dfs, function(tabla, cap) {
+    if (!is.data.frame(tabla) || length(tabla) == 0) {
+      return(tibble::tibble(
+        capitulo = character(),
+        variable = character(),
+        clase = character()
+      ))
+    }
+
+    tibble::tibble(
+      capitulo = cap,
+      variable = names(tabla),
+      clase = unname(purrr::map_chr(tabla, ~ paste(unname(class(.x)), collapse = " | ")))
+    ) %>%
+      dplyr::filter(.data$clase == "logical")
+  })
 }

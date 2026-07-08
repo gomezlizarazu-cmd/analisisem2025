@@ -504,3 +504,107 @@ entonces los cambios finales tambien deben quedar sincronizados en la carpeta de
 ### Validacion
 
 La validacion manual que se entregue al usuario debe usar por defecto la ruta de OneDrive, porque esa es la ruta que el usuario carga en RStudio.
+
+
+## Verificación obligatoria de worktree local antes de editar (CRÍTICO)
+
+El agente debe confirmar explícitamente si está editando el mismo directorio que el usuario carga en RStudio.
+
+Ruta local principal del usuario:
+
+```text
+C:/Users/gomez/OneDrive/Documentos/analisisem2025
+```
+Antes de modificar cualquier archivo, el agente debe ejecutar o solicitar la verificación de:
+
+```text
+pwd
+git branch --show-current
+git status --short
+git worktree list
+Regla principal
+```
+Si la tarea debe modificar archivos que el usuario probará con:
+
+```text
+devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+```
+entonces los cambios finales deben quedar en:
+
+```text
+C:/Users/gomez/OneDrive/Documentos/analisisem2025
+```
+No basta con modificar un worktree temporal de Codex.
+
+Prohibiciones
+
+El agente NO debe:
+
+cambiar de rama sin autorización explícita;
+crear otro worktree si la rama ya está usada por OneDrive;
+trabajar sobre main si el usuario indicó una rama específica;
+asumir que el selector de rama de la interfaz coincide con el worktree local;
+hacer git switch, git restore, git clean, stash pop, commit o push sin autorización explícita;
+sobrescribir archivos de OneDrive con versiones del worktree sin comparar previamente.
+Si hay diferencia entre worktrees
+
+Si git worktree list muestra que la rama de trabajo ya está usada por:
+
+```text
+C:/Users/gomez/OneDrive/Documentos/analisisem2025
+```
+
+el agente debe trabajar directamente en esa ruta o detenerse y avisar.
+
+Si Codex está en otra ruta, por ejemplo:
+
+C:/Users/gomez/.codex/worktrees/...
+
+debe reportarlo claramente y no afirmar que modificó los archivos locales del usuario hasta sincronizar los archivos necesarios hacia OneDrive.
+
+Prueba mínima de escritura local
+
+Cuando exista duda sobre si Codex está escribiendo en la carpeta correcta, el agente debe hacer una prueba mínima y reversible, previa autorización del usuario:
+
+Crear temporalmente:
+
+```text
+inst/scripts/_prueba_codex_local.txt
+```
+con un texto simple, y pedir al usuario verificar:
+
+```text
+git status --short
+```
+
+Si el archivo aparece en el git status de OneDrive, Codex está escribiendo en la ruta correcta.
+
+Después debe eliminar el archivo de prueba.
+
+Regla de reporte final
+
+Al terminar cualquier cambio, el agente debe reportar:
+
+ruta exacta donde modificó archivos;
+rama activa;
+archivos modificados;
+si los cambios quedaron sincronizados en OneDrive;
+comandos de validación manual para RStudio usando la ruta de OneDrive.
+
+La validación final debe usar por defecto:
+
+```text
+devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+```
+## Uso obligatorio de funciones del paquete
+
+Antes de crear scripts autocontenidos, el agente debe buscar funciones existentes en `R/` que resuelvan parte de la tarea.
+
+Regla:
+- Usar primero funciones existentes del paquete `analisisem2025`.
+- No duplicar helpers ya disponibles.
+- Si se requiere lógica nueva y será reutilizable, crearla en `R/` como función del paquete.
+- Documentar funciones nuevas con `roxygen2`.
+- Los scripts en `inst/scripts/` deben ser ejemplos de ejecución, no el lugar principal de la lógica.
+- No modificar `NAMESPACE` ni `man/` manualmente.
+- No correr `devtools::document()` sin autorización explícita.

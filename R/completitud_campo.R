@@ -41,7 +41,7 @@ clasificar_completitud_campo <- function(
       PERIODO = periodo,
       RES_VIV = .data$RES_VIV,
       SEGMENTO = if ("SEGMENTO" %in% names(.)) dplyr::coalesce(gsub("_", "", SEGMENTO), "SIN_SEGMENTO") else NA_character_,
-      CLASE = if ("CLASE" %in% names(.)) dplyr::coalesce(CLASE, 0) else NA_real_,
+      CLASE = if ("CLASE" %in% names(.)) dplyr::coalesce(as.character(CLASE), "0") else NA_character_,
       viv_efectiva = .data$NVCAPCTRL1 %in% c(1, 2),
       viv_ocupada = .data$NVCAPCTRL1 == 1,
       viv_ocupada_presente = .data$NVCAPCTRL1 == 1 & .data$NVCAPCTRL2 == 1,
