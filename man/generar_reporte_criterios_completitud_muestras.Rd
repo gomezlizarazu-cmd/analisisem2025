@@ -12,7 +12,8 @@ generar_reporte_criterios_completitud_muestras(
   municipios_objetivo = c("Zipacon", "Zipacón", "Soacha"),
   incluir_recuperables = TRUE,
   exportar = FALSE,
-  ruta_salida = NULL
+  ruta_salida = NULL,
+  reglas_tematica = NULL
 )
 }
 \arguments{
@@ -37,6 +38,10 @@ funcion existente exporta una sabana, solo se evalua cuando
 \item{exportar}{Si \code{TRUE}, exporta los resultados a Excel.}
 
 \item{ruta_salida}{Carpeta de salida. Obligatoria si \code{exportar = TRUE}.}
+
+\item{reglas_tematica}{Reglas tematicas opcionales con columnas \code{capitulo},
+\code{nivel}, \code{variable} y \code{descripcion}; se usan solo para documentar
+variables de la tabla de criterios.}
 }
 \value{
 Lista con:
@@ -44,6 +49,11 @@ Lista con:
 \item{criterios_general}{Tabla general de criterios de completitud/perdida.}
 \item{zipacon_soacha_detalle}{Detalle municipal para los municipios objetivo.}
 \item{zipacon_soacha_resumen}{Resumen municipal por etapa y clasificacion.}
+\item{resumen_final_niveles}{Resumen final de unidades evaluadas, caidas y no caidas por nivel.}
+\item{resumen_final_municipios_niveles}{Resumen final municipal por nivel para los municipios objetivo.}
+\item{tabla_variables_criterios}{Variables puras y derivadas que soportan cada criterio de caida.}
+\item{cascada_encuestas_muestras}{Cascada ejecutiva excluyente de caidas por ambito y nivel.}
+\item{comparacion_cascada_con_sin_tematica}{Comparacion de cascada con y sin reglas tematicas.}
 \item{vista_larga_encuesta_regla}{Vista larga, una fila por persona-regla.}
 \item{vista_consolidada_encuesta}{Vista consolidada, una fila por persona.}
 \item{metodologia_correo}{Texto breve para comunicar la metodologia.}
@@ -80,6 +90,11 @@ salida <- generar_reporte_criterios_completitud_muestras(
 salida$criterios_general
 salida$zipacon_soacha_detalle
 salida$zipacon_soacha_resumen
+salida$resumen_final_niveles
+salida$resumen_final_municipios_niveles
+salida$tabla_variables_criterios
+salida$cascada_encuestas_muestras
+salida$comparacion_cascada_con_sin_tematica
 }
 
 }

@@ -4,13 +4,21 @@
 \alias{construir_base_em_completa}
 \title{Construir la base definitiva de encuestas completas}
 \usage{
-construir_base_em_completa(dfs, reporte_final_caidas)
+construir_base_em_completa(
+  dfs,
+  reporte_final_caidas,
+  validar_preservacion = TRUE
+)
 }
 \arguments{
 \item{dfs}{Lista de data frames con los capitulos de la encuesta.}
 
 \item{reporte_final_caidas}{Data frame consolidado con las variables de
 caida por encuesta/persona.}
+
+\item{validar_preservacion}{Logico. Si \code{TRUE}, valida que las variables
+originales se preserven despues del filtrado y detiene la ejecucion ante
+alteraciones graves de clase, dominio o valor.}
 }
 \value{
 Una lista con:
