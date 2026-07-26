@@ -302,6 +302,38 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   paste(vars, collapse = ", ")
 }
 
+.diag_k_aplicar_universo_edad_k <- function(debe, universo_k, n) {
+  debe <- .diag_k_logical(debe, n)
+  universo_k <- .diag_k_logical(universo_k, n)
+  .diag_k_and(universo_k, debe)
+}
+
+.diag_k_regla_tiene_edad <- function(regla_r) {
+  regla_r <- as.character(regla_r)
+  !is.na(regla_r) &
+    grepl("(^|[^A-Za-z0-9_])edad\\s*(>=|>|==|<=|<)", regla_r, ignore.case = TRUE)
+}
+
+.diag_k_envolver_regla_visible <- function(regla_r) {
+  regla_r <- stringr::str_squish(as.character(regla_r))
+  necesita_parentesis <- grepl("\\|", regla_r) & !grepl("^\\s*\\(", regla_r)
+  regla_r[necesita_parentesis] <- paste0("(", regla_r[necesita_parentesis], ")")
+  regla_r
+}
+
+.diag_k_normalizar_regla_visible_edad_k <- function(regla_r) {
+  regla_r <- stringr::str_squish(as.character(regla_r))
+  regla_r[is.na(regla_r) | !nzchar(regla_r)] <- NA_character_
+
+  agregar_edad <- !is.na(regla_r) & !.diag_k_regla_tiene_edad(regla_r)
+  regla_r[agregar_edad] <- paste0(
+    "edad >= 10 & ",
+    .diag_k_envolver_regla_visible(regla_r[agregar_edad])
+  )
+
+  regla_r
+}
+
 .diag_k_expandir_aliases_regla <- function(regla_r, variable_k23_final) {
   regla_r <- as.character(regla_r)
   ocupado <- paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8)")
@@ -385,10 +417,13 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     orden_flujo <<- orden_flujo + 1L
     regla_r <- .diag_k_null(regla_r, regla_aplicada)
     regla_r <- .diag_k_expandir_aliases_regla(regla_r, variable_k23_final)
+    regla_r <- .diag_k_normalizar_regla_visible_edad_k(regla_r)
+    debe <- .diag_k_aplicar_universo_edad_k(debe, universo_k, n)
     condicion_debe_responder <- .diag_k_null(
       condicion_debe_responder,
-      paste0(variable, " debe responder si ", regla_aplicada, ".")
+      paste0(variable, " debe responder si ", regla_r, ".")
     )
+    condicion_debe_responder <- .diag_k_normalizar_regla_visible_edad_k(condicion_debe_responder)
     variables_previas_usadas <- .diag_k_null(
       variables_previas_usadas,
       .diag_k_extraer_variables_regla(regla_r)

@@ -298,7 +298,17 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
     rep(NA_real_, n)
   }
 
-  universo_k <- !is.na(edad) & edad >= 10
+  universo_k <- dplyr::if_else(!is.na(edad), edad >= 10, NA)
+  aplicar_universo_k <- function(flag) {
+    flag <- as.logical(flag)
+    if (length(flag) == 1L) flag <- rep(flag, n)
+    out <- rep(NA, n)
+    out[universo_k %in% FALSE] <- FALSE
+    out[universo_k %in% TRUE & flag %in% TRUE] <- TRUE
+    out[universo_k %in% TRUE & flag %in% FALSE] <- FALSE
+    out[is.na(universo_k) & flag %in% FALSE] <- FALSE
+    out
+  }
 
   llega_K17 <- universo_k & (
     num_col("NPCKP18") %in% 2 |
@@ -397,31 +407,31 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
 
   data$edad <- edad
   data$universo_k <- universo_k
-  data$llega_K17 <- llega_K17
-  data$llega_K45 <- llega_K45
-  data$llega_K50 <- llega_K50
-  data$llega_K53 <- llega_K53
+  data$llega_K17 <- aplicar_universo_k(llega_K17)
+  data$llega_K45 <- aplicar_universo_k(llega_K45)
+  data$llega_K50 <- aplicar_universo_k(llega_K50)
+  data$llega_K53 <- aplicar_universo_k(llega_K53)
   data$usa_algun_medio_transporte <- usa_algun_medio_transporte
   data$no_se_desplaza <- no_se_desplaza
-  data$llega_K54 <- llega_K54
-  data$llega_K55 <- llega_K55
-  data$llega_K56 <- llega_K56
-  data$llega_K57 <- llega_K57
-  data$llega_K58 <- llega_K58
-  data$llega_K59 <- llega_K59
-  data$llega_K62 <- llega_K62
-  data$llega_K63 <- llega_K63
-  data$llega_K66 <- llega_K66
-  data$llega_K67 <- llega_K67
-  data$llega_K68 <- llega_K68
-  data$llega_K69 <- llega_K69
-  data$llega_K70 <- llega_K70
-  data$llega_K71 <- llega_K71
-  data$llega_K72 <- llega_K72
-  data$llega_K73 <- llega_K73
-  data$llega_K76 <- llega_K76
-  data$llega_K77 <- llega_K77
-  data$llega_K78 <- llega_K78
+  data$llega_K54 <- aplicar_universo_k(llega_K54)
+  data$llega_K55 <- aplicar_universo_k(llega_K55)
+  data$llega_K56 <- aplicar_universo_k(llega_K56)
+  data$llega_K57 <- aplicar_universo_k(llega_K57)
+  data$llega_K58 <- aplicar_universo_k(llega_K58)
+  data$llega_K59 <- aplicar_universo_k(llega_K59)
+  data$llega_K62 <- aplicar_universo_k(llega_K62)
+  data$llega_K63 <- aplicar_universo_k(llega_K63)
+  data$llega_K66 <- aplicar_universo_k(llega_K66)
+  data$llega_K67 <- aplicar_universo_k(llega_K67)
+  data$llega_K68 <- aplicar_universo_k(llega_K68)
+  data$llega_K69 <- aplicar_universo_k(llega_K69)
+  data$llega_K70 <- aplicar_universo_k(llega_K70)
+  data$llega_K71 <- aplicar_universo_k(llega_K71)
+  data$llega_K72 <- aplicar_universo_k(llega_K72)
+  data$llega_K73 <- aplicar_universo_k(llega_K73)
+  data$llega_K76 <- aplicar_universo_k(llega_K76)
+  data$llega_K77 <- aplicar_universo_k(llega_K77)
+  data$llega_K78 <- aplicar_universo_k(llega_K78)
 
   data
 }
