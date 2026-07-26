@@ -301,14 +301,22 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
   universo_k <- !is.na(edad) & edad >= 10
 
   llega_K17 <- universo_k & (
-    num_col("NPCKP2_1") %in% 1 |
-      num_col("NPCKP2") %in% 1 |
-      num_col("NPCKP5_1") %in% 1:4 |
-      num_col("NPCKP6_1") %in% 1 |
-      num_col("NPCKP4") %in% 1
+    num_col("NPCKP18") %in% 2 |
+      num_col("NPCKP19") %in% c(1, 9) |
+      num_col("NPCKP20") %in% c(1, 2, 9)
   )
 
-  llega_K45 <- llega_K17 & num_col("NPCKP17") %in% 1:8
+  ocupado_k23 <- universo_k & num_col("NPCKP17") %in% 1:8
+  no_ocupado <- universo_k & (
+    num_col("NPCKP1") %in% 5 |
+      num_col("NPCKP7") %in% 2 |
+      num_col("NPCKP13") %in% 2 |
+      tiene_valor("NPCKP47B")
+  )
+  ocupados_o_no_ocupados <- universo_k & (ocupado_k23 | no_ocupado)
+  mayor_18_ocupados_o_no_ocupados <- !is.na(edad) & edad >= 18 & (ocupado_k23 | no_ocupado)
+
+  llega_K45 <- ocupado_k23
 
   llega_K50 <- llega_K45 &
     tiene_valor("NPCKP41") &
@@ -318,7 +326,7 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
         tiene_valor("NPCKP42A")
     )
 
-  llega_K53 <- num_col("NPCKP44A") %in% 2:11
+  llega_K53 <- llega_K45 & !(num_col("NPCKP44A") %in% 1)
 
   vars_medios <- c(
     "NPCKP45A", "NPCKP45B", "NPCKP45C", "NPCKP45D",
@@ -351,80 +359,31 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
         (num_col("NPCKP47") %in% 1 & tiene_valor("NPCKP47A"))
     )
 
-  llega_K58 <- num_col("NPCKP13") %in% 1
+  llega_K58 <- universo_k & num_col("NPCKP13") %in% 1
 
-  llega_K59 <- num_col("NPCKP1") %in% 5 |
-    num_col("NPCKP7") %in% 2 |
-    num_col("NPCKP13") %in% 2
+  llega_K59 <- no_ocupado
 
-  llega_K62 <- num_col("NPCKP47C") %in% 2 |
-    num_col("NPCKP61_1") %in% 1:9 |
-    tiene_valor("NPCKP61_2")
+  llega_K62 <- no_ocupado
 
-  llega_K63 <- (
-    llega_K57 &
-      (
-        num_col("NPCKNP48") %in% 2 |
-          tiene_valor("NPCKNP48D1")
-      )
-  ) | (
-    llega_K62 &
-      (
-        num_col("NPCKP48") %in% 2 |
-          tiene_valor("NPCKP48A")
-      )
-  )
+  llega_K63 <- ocupados_o_no_ocupados
 
-  llega_K66 <- llega_K63 &
-    (
-      (!is.na(edad) & edad < 15) |
-        num_col("NPCKP50") %in% c(2, 3) |
-        algun_valor("NPCKP51")
-    )
+  llega_K66 <- ocupados_o_no_ocupados
 
-  llega_K67 <- llega_K66 &
-    (
-      num_col("NPCKP52") %in% c(2, 3) |
-        tiene_valor("NPCKP52A")
-    )
+  llega_K67 <- ocupados_o_no_ocupados
 
-  llega_K68 <- llega_K67 &
-    (
-      num_col("NPCKP53") %in% c(2, 3) |
-        tiene_valor("NPCKP53A")
-    )
+  llega_K68 <- ocupados_o_no_ocupados
 
-  llega_K69 <- llega_K68 &
-    (
-      num_col("NPCKP54") %in% c(2, 3) |
-        tiene_valor("NPCKP54A")
-    )
+  llega_K69 <- ocupados_o_no_ocupados
 
-  llega_K70 <- llega_K69 &
-    (
-      num_col("NPCKP55") %in% 2 |
-        tiene_valor("NPCKP55A")
-    )
+  llega_K70 <- ocupados_o_no_ocupados
 
-  llega_K71 <- llega_K70 &
-    (
-      num_col("NPCKP56") %in% 2 |
-        num_col("NPCKP56A") %in% 1:3
-    )
+  llega_K71 <- ocupados_o_no_ocupados
 
-  llega_K72 <- llega_K71 &
-    (
-      num_col("NPCKP57") %in% 2 |
-        tiene_valor("NPCKP57A")
-    )
+  llega_K72 <- ocupados_o_no_ocupados
 
-  llega_K73 <- llega_K72 &
-    (
-      num_col("NPCKP58") %in% 2 |
-        tiene_valor("NPCKP58A")
-    )
+  llega_K73 <- ocupados_o_no_ocupados
 
-  llega_K76 <- llega_K73 &
+  llega_K76 <- universo_k &
     !is.na(edad) &
     edad >= 18 &
     (
@@ -432,17 +391,9 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
         num_col("NPCKP75_1") %in% c(1, 2, 3)
     )
 
-  llega_K77 <- llega_K76 &
-    (
-      num_col("NPCKPN62A") %in% 2 |
-        tiene_valor("NPCKPN62B")
-    )
+  llega_K77 <- ocupados_o_no_ocupados
 
-  llega_K78 <- llega_K77 &
-    (
-      num_col("NPCKP59J") %in% 2 |
-        tiene_valor("NPCKP59JA")
-    )
+  llega_K78 <- mayor_18_ocupados_o_no_ocupados
 
   data$edad <- edad
   data$universo_k <- universo_k
