@@ -29,7 +29,7 @@
 #'   7, "NPCKP4", "Ayudo sin pago", "NPCKP3 == 2", "1", "Si", "K17",
 #'   8, "NPCKP5", "Busco trabajo", "NPCKP4 == 2", "1", "Si", "K16",
 #'   10, "NPCKP7", "Desea trabajar", "NPCKP5 == 2", "1", "Si", "K8",
-#'   16, "NPCKP13", "Disponibilidad", "NPCKP12 >= 1", "1", "Si", "K58",
+#'   16, "NPCKP13", "Disponibilidad", "NPCKP5 == 1 | (NPCKP5 == 2 & NPCKP7 == 1)", "1", "Si", "K58",
 #'   23, "NPCKP17", "Categoria ocupacional", "llega_K17", "1", "Asalariado", "K24",
 #'   63, "NPCKP50_A", "Experiencia laboral", "llega_K63", NA, "Anios", "NPCKP50_B",
 #'   66, "NPCKP52", "Pension", "llega_K66", "2", "No", "K67",

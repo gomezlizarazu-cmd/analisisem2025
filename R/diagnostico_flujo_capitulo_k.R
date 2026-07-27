@@ -302,6 +302,38 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   paste(vars, collapse = ", ")
 }
 
+.diag_k_aplicar_universo_edad_k <- function(debe, universo_k, n) {
+  debe <- .diag_k_logical(debe, n)
+  universo_k <- .diag_k_logical(universo_k, n)
+  .diag_k_and(universo_k, debe)
+}
+
+.diag_k_regla_tiene_edad <- function(regla_r) {
+  regla_r <- as.character(regla_r)
+  !is.na(regla_r) &
+    grepl("(^|[^A-Za-z0-9_])edad\\s*(>=|>|==|<=|<)", regla_r, ignore.case = TRUE)
+}
+
+.diag_k_envolver_regla_visible <- function(regla_r) {
+  regla_r <- stringr::str_squish(as.character(regla_r))
+  necesita_parentesis <- grepl("\\|", regla_r) & !grepl("^\\s*\\(", regla_r)
+  regla_r[necesita_parentesis] <- paste0("(", regla_r[necesita_parentesis], ")")
+  regla_r
+}
+
+.diag_k_normalizar_regla_visible_edad_k <- function(regla_r) {
+  regla_r <- stringr::str_squish(as.character(regla_r))
+  regla_r[is.na(regla_r) | !nzchar(regla_r)] <- NA_character_
+
+  agregar_edad <- !is.na(regla_r) & !.diag_k_regla_tiene_edad(regla_r)
+  regla_r[agregar_edad] <- paste0(
+    "edad >= 10 & ",
+    .diag_k_envolver_regla_visible(regla_r[agregar_edad])
+  )
+
+  regla_r
+}
+
 .diag_k_expandir_aliases_regla <- function(regla_r, variable_k23_final) {
   regla_r <- as.character(regla_r)
   ocupado <- paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8)")
@@ -385,10 +417,13 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     orden_flujo <<- orden_flujo + 1L
     regla_r <- .diag_k_null(regla_r, regla_aplicada)
     regla_r <- .diag_k_expandir_aliases_regla(regla_r, variable_k23_final)
+    regla_r <- .diag_k_normalizar_regla_visible_edad_k(regla_r)
+    debe <- .diag_k_aplicar_universo_edad_k(debe, universo_k, n)
     condicion_debe_responder <- .diag_k_null(
       condicion_debe_responder,
-      paste0(variable, " debe responder si ", regla_aplicada, ".")
+      paste0(variable, " debe responder si ", regla_r, ".")
     )
+    condicion_debe_responder <- .diag_k_normalizar_regla_visible_edad_k(condicion_debe_responder)
     variables_previas_usadas <- .diag_k_null(
       variables_previas_usadas,
       .diag_k_extraer_variables_regla(regla_r)
@@ -432,61 +467,77 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   debe_npckp3 <- .diag_k_and(universo_k, eq("NPCKP2", 2))
   debe_npckp5_1 <- .diag_k_and(universo_k, eq("NPCKP3", 1))
   debe_npckp6_1 <- .diag_k_and(universo_k, in_set("NPCKP5_1", 5:8))
-  debe_npckp4 <- .diag_k_and(universo_k, in_set("NPCKP6_1", c(2, 3)))
+  debe_npckp4 <- .diag_k_and(universo_k, .diag_k_or(eq("NPCKP3", 2), in_set("NPCKP6_1", c(2, 3))))
   debe_npckp5 <- .diag_k_and(universo_k, eq("NPCKP4", 2))
   debe_npckp6 <- .diag_k_and(universo_k, eq("NPCKP5", 1))
   debe_npckp7 <- .diag_k_and(universo_k, eq("NPCKP5", 2))
   debe_npckp8 <- .diag_k_and(universo_k, eq("NPCKP7", 1))
-  debe_npckp9 <- .diag_k_and(universo_k, in_set("NPCKP8", 2:8))
+  debe_npckp9 <- .diag_k_and(universo_k, in_set("NPCKP8", 2:10))
   debe_npckp10 <- .diag_k_and(universo_k, eq("NPCKP9", 1))
   debe_npckp11 <- .diag_k_and(universo_k, eq("NPCKP9", 2))
-  debe_npckp12 <- .diag_k_and(universo_k, eq("NPCKP10", 1))
+  debe_npckp12 <- .diag_k_and(universo_k, .diag_k_or(eq("NPCKP10", 1), eq("NPCKP11", 1)))
   debe_npckp13 <- .diag_k_and(
     universo_k,
     .diag_k_or(
-      .diag_k_and(in_set("NPCKP8", c(1, 9, 10, 11, 12, 13)), in_set("NPCKP12", 1:12)),
-      eq("NPCKP10", 2),
-      eq("NPCKP11", 2)
+      eq("NPCKP5", 1),
+      .diag_k_and(eq("NPCKP5", 2), eq("NPCKP7", 1))
     )
   )
 
-  ocupado_pre_k23 <- .diag_k_and(
+  regla_entrada_ocupados <- paste0(
+    "NPCKP2_1 == 1 | NPCKP2 == 1 | ",
+    "(NPCKP3 == 1 & NPCKP5_1 %in% c(1,2,3,4)) | ",
+    "(NPCKP3 == 1 & NPCKP5_1 %in% c(5,6,7,8) & NPCKP6_1 == 1) | ",
+    "((NPCKP3 == 2 | NPCKP6_1 %in% c(2,3)) & NPCKP4 == 1)"
+  )
+  regla_entrada_ocupados_edad <- paste0("edad >= 10 & (", regla_entrada_ocupados, ")")
+  entrada_ocupados <- .diag_k_and(
     universo_k,
-    .diag_k_or(eq("NPCKP4", 1), eq("NPCKP2", 1), eq("NPCKP2_1", 1))
+    .diag_k_or(
+      eq("NPCKP2_1", 1),
+      eq("NPCKP2", 1),
+      .diag_k_and(eq("NPCKP3", 1), in_set("NPCKP5_1", 1:4)),
+      .diag_k_and(eq("NPCKP3", 1), in_set("NPCKP5_1", 5:8), eq("NPCKP6_1", 1)),
+      .diag_k_and(.diag_k_or(eq("NPCKP3", 2), in_set("NPCKP6_1", c(2, 3))), eq("NPCKP4", 1))
+    )
   )
-  debe_npckp18 <- .diag_k_and(
-    universo_k,
-    .diag_k_or(tiene_valor("NPCKP14"), tiene_valor("NPCKP15"), tiene_valor("NPCKP16"))
-  )
-  debe_npckp17 <- .diag_k_and(
-    universo_k,
-    .diag_k_or(eq("NPCKP18", 2), in_set("NPCKP19", c(1, 9)), in_set("NPCKP20", c(1, 2, 9)))
-  )
-  regla_npckp17 <- paste0(
-    "edad >= 10 & (",
-    "NPCKP18 == 2 | NPCKP19 == 1 | NPCKP19 == 9 | NPCKP20 %in% c(1,2,9)",
-    ")"
-  )
-  ocupado_k23 <- .diag_k_and(universo_k, in_set(variable_k23_final, 1:8))
-  asalariado <- .diag_k_and(universo_k, in_set(variable_k23_final, c(1, 2, 3, 7)))
-  independiente <- .diag_k_and(universo_k, in_set(variable_k23_final, c(4, 5, 8)))
+  ocupado_pre_k23 <- entrada_ocupados
+  debe_npckp18 <- entrada_ocupados
+  debe_npckp17 <- entrada_ocupados
+  regla_npckp17 <- regla_entrada_ocupados_edad
+  regla_base_ocupados <- paste0("(", regla_entrada_ocupados_edad, ") & ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8)")
+  regla_base_asalariados <- paste0("(", regla_entrada_ocupados_edad, ") & ", variable_k23_final, " %in% c(1,2,3,7)")
+  regla_base_independientes <- paste0("(", regla_entrada_ocupados_edad, ") & ", variable_k23_final, " %in% c(4,5,8)")
+  ocupado_k23 <- .diag_k_and(entrada_ocupados, in_set(variable_k23_final, 1:8))
+  asalariado <- .diag_k_and(entrada_ocupados, in_set(variable_k23_final, c(1, 2, 3, 7)))
+  independiente <- .diag_k_and(entrada_ocupados, in_set(variable_k23_final, c(4, 5, 8)))
   no_ocupado <- .diag_k_and(
     universo_k,
-    .diag_k_or(eq("NPCKP1", 5), eq("NPCKP7", 2), eq("NPCKP13", 2), tiene_valor("NPCKP47B"))
+    .diag_k_or(eq("NPCKP1", 5), eq("NPCKP7", 2), in_set("NPCKP13", c(1, 2)))
   )
-  ocupados_o_no_ocupados <- .diag_k_and(
-    universo_k,
-    .diag_k_or(ocupado_k23, eq("NPCKP1", 5), eq("NPCKP7", 2), eq("NPCKP13", 2), tiene_valor("NPCKP47B"))
-  )
-  mayor_18_ocupados_o_no_ocupados <- .diag_k_and(
-    universo_k,
-    gt_val(edad, 17),
-    .diag_k_or(ocupado_k23, eq("NPCKP1", 5), eq("NPCKP7", 2), eq("NPCKP13", 2), tiene_valor("NPCKP47B"))
-  )
+  regla_base_k59 <- "NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 %in% c(1,2)"
+  regla_base_k59_edad <- paste0("edad >= 10 & (", regla_base_k59, ")")
+  regla_k60_k61 <- paste0("(", regla_base_k59, ") & NPCKP47C == 2")
+  comentario_k60_k61 <- "NPCKP47C == 1 pasa a K62. NPCKP47C == 2 continua a K60 y K61."
+  base_k3 <- .diag_k_or(ocupado_k23, no_ocupado)
+  regla_base_k3 <- paste0("(", regla_base_ocupados, ") | (", regla_base_k59_edad, ")")
+  base_k3_15 <- .diag_k_and(base_k3, gt_val(edad, 14))
+  base_k3_18 <- .diag_k_and(base_k3, gt_val(edad, 17))
+  regla_base_k3_15 <- paste0("edad >= 15 & (", regla_base_k3, ")")
+  regla_base_k3_18 <- paste0("edad >= 18 & (", regla_base_k3, ")")
+  ocupados_o_no_ocupados <- base_k3
+  mayor_18_ocupados_o_no_ocupados <- base_k3_18
   transporte_ocupados <- .diag_k_and(ocupado_k23, .diag_k_not(eq("NPCKP44A", 1)))
+  regla_base_transporte <- paste0("(", regla_base_ocupados, ") & NPCKP44A != 1")
   es_bogota_soacha <- in_set("MPIO", c(11001, 25754))
   transporte_bogota_soacha <- .diag_k_and(transporte_ocupados, es_bogota_soacha)
   transporte_no_bogota_soacha <- .diag_k_and(transporte_ocupados, .diag_k_not(es_bogota_soacha))
+  transporte_otro_municipio <- .diag_k_and(transporte_ocupados, eq("NPCKPA46", 2))
+  aplica_npckp45l_caballo <- .diag_k_or(
+    .diag_k_not(eq("MPIO", 11001)),
+    .diag_k_and(eq("MPIO", 11001), in_set("CLASE", c(2, 3)))
+  )
+  transporte_caballo_k53 <- .diag_k_and(transporte_ocupados, aplica_npckp45l_caballo)
 
   add("NPCKP1", "01_entrada_actividad", universo_k, "edad >= 10")
   add("NPCKP1A", "01_entrada_actividad", .diag_k_and(universo_k, eq("NPCKP1", 6)), "NPCKP1 == 6", texto_libre = TRUE)
@@ -496,7 +547,7 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   add("NPCKP5_1", "01_entrada_actividad", debe_npckp5_1, "NPCKP3 == 1")
   add("NPCKP5_1A", "01_entrada_actividad", .diag_k_and(universo_k, eq("NPCKP5_1", 8)), "NPCKP5_1 == 8", texto_libre = TRUE)
   add("NPCKP6_1", "01_entrada_actividad", debe_npckp6_1, "NPCKP5_1 %in% c(5,6,7,8)")
-  add("NPCKP4", "01_entrada_actividad", debe_npckp4, "NPCKP6_1 %in% c(2,3)")
+  add("NPCKP4", "01_entrada_actividad", debe_npckp4, "NPCKP3 == 2 | NPCKP6_1 %in% c(2,3)")
 
   add("NPCKP5", "02_busqueda_empleo", debe_npckp5, "NPCKP4 == 2")
   add("NPCKP6", "02_busqueda_empleo", debe_npckp6, "NPCKP5 == 1")
@@ -504,28 +555,28 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   add("NPCKP7", "02_busqueda_empleo", debe_npckp7, "NPCKP5 == 2")
   add("NPCKP8", "02_busqueda_empleo", debe_npckp8, "NPCKP7 == 1")
   add("NPCKP8A", "02_busqueda_empleo", .diag_k_and(universo_k, eq("NPCKP8", 13)), "NPCKP8 == 13", texto_libre = TRUE)
-  add("NPCKP9", "02_busqueda_empleo", debe_npckp9, "NPCKP8 %in% c(2,3,4,5,6,7,8)")
+  add("NPCKP9", "02_busqueda_empleo", debe_npckp9, "NPCKP8 %in% c(2,3,4,5,6,7,8,9,10)")
   add("NPCKP10", "02_busqueda_empleo", debe_npckp10, "NPCKP9 == 1")
   add("NPCKP11", "02_busqueda_empleo", debe_npckp11, "NPCKP9 == 2")
-  add("NPCKP12", "02_busqueda_empleo", debe_npckp12, "NPCKP10 == 1")
-  add("NPCKP13", "02_busqueda_empleo", debe_npckp13, "((NPCKP8 %in% c(1,9,10,11,12,13) & NPCKP12 >= 1 & NPCKP12 <= 12) | NPCKP10 == 2 | NPCKP11 == 2)")
+  add("NPCKP12", "02_busqueda_empleo", debe_npckp12, "NPCKP10 == 1 | NPCKP11 == 1")
+  add("NPCKP13", "02_busqueda_empleo", debe_npckp13, "NPCKP5 == 1 | (NPCKP5 == 2 & NPCKP7 == 1)")
 
-  add_many(c("NPCKP14", "NPCKP15", "NPCKP16"), "03_ocupados_pre_k23", ocupado_pre_k23, "NPCKP4 == 1 | NPCKP2 == 1 | NPCKP2_1 == 1")
-  add("NPCKP18", "03_ocupados_pre_k23", debe_npckp18, "NPCKP14 tiene valor | NPCKP15 tiene valor | NPCKP16 tiene valor")
-  add("NPCKP19", "03_ocupados_pre_k23", .diag_k_and(universo_k, eq("NPCKP18", 1)), "NPCKP18 == 1")
-  add("NPCKP20", "03_ocupados_pre_k23", .diag_k_and(universo_k, eq("NPCKP19", 2)), "NPCKP19 == 2")
-  add("NPCKP20A", "03_ocupados_pre_k23", .diag_k_and(universo_k, eq("NPCKP20", 2)), "NPCKP20 == 2", texto_libre = TRUE)
+  add_many(c("NPCKP14", "NPCKP15", "NPCKP16"), "03_ocupados_pre_k23", ocupado_pre_k23, regla_entrada_ocupados)
+  add("NPCKP18", "03_ocupados_pre_k23", debe_npckp18, regla_entrada_ocupados)
+  add("NPCKP19", "03_ocupados_pre_k23", .diag_k_and(entrada_ocupados, eq("NPCKP18", 1)), paste0("(", regla_entrada_ocupados, ") & NPCKP18 == 1"))
+  add("NPCKP20", "03_ocupados_pre_k23", .diag_k_and(entrada_ocupados, eq("NPCKP18", 1), eq("NPCKP19", 2)), paste0("(", regla_entrada_ocupados, ") & NPCKP18 == 1 & NPCKP19 == 2"))
+  add("NPCKP20A", "03_ocupados_pre_k23", .diag_k_and(entrada_ocupados, eq("NPCKP20", 2)), paste0("(", regla_entrada_ocupados, ") & NPCKP20 == 2"), texto_libre = TRUE)
   add(
     variable_k23_final,
     "04_k23_posicion_ocupacional",
     debe_npckp17,
-    "NPCKP18 == 2 | NPCKP19 %in% c(1,9) | NPCKP20 %in% c(1,2,9)",
+    regla_entrada_ocupados,
     condicion_debe_responder = paste0(variable_k23_final, " debe responder si edad >= 10 y cumple la ruta corregida de K23."),
-    variables_previas_usadas = "edad, NPCKP18, NPCKP19, NPCKP20",
+    variables_previas_usadas = "edad, NPCKP2_1, NPCKP2, NPCKP3, NPCKP5_1, NPCKP6_1, NPCKP4",
     regla_r = regla_npckp17,
     comentario = "K23 se audita como nodo de flujo; no se marca como candidata de imputacion porque NPCKP17_FINAL se toma como insumo cierto."
   )
-  add("NPCKP17A", "04_k23_posicion_ocupacional", .diag_k_and(universo_k, eq(variable_k23_final, 8)), paste0(variable_k23_final, " == 8"), texto_libre = TRUE)
+  add("NPCKP17A", "04_k23_posicion_ocupacional", .diag_k_and(entrada_ocupados, eq(variable_k23_final, 8)), paste0("(", regla_entrada_ocupados, ") & ", variable_k23_final, " == 8"), texto_libre = TRUE)
 
   add_many(c(
     "NPCKP22", "NPCKP25_1", "NPCKP23", "NPCKP24", "NPCKP25",
@@ -533,7 +584,7 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     "NPCKP32", "NPCKP33", "NPCKNP33A", "NPCKP34A", "NPCKP34B",
     "NPCKP34C", "NPCKP34D", "NPCKP34E", "NPCKP35A", "NPCKP35_A",
     "NPCKP35_C", "NPCKP35_D", "NPCKP35_E"
-  ), "05_rama_asalariados", asalariado, paste0(variable_k23_final, " %in% c(1,2,3,7)"))
+  ), "05_rama_asalariados", asalariado, regla_base_asalariados)
   for (par in list(
     c("NPCKP22_1A", "NPCKP22", "6"), c("NPCKP24A", "NPCKP24", "1"), c("NPCKP24B", "NPCKP24", "1"),
     c("NPCKP25A", "NPCKP25", "1"), c("NPCKP26A", "NPCKP26", "1"), c("NPCKP27A", "NPCKP27", "1"),
@@ -543,75 +594,177 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     c("NPCKP34AA", "NPCKP34A", "1"), c("NPCKP34BA", "NPCKP34B", "1"), c("NPCKP34CA", "NPCKP34C", "1"),
     c("NPCKP34DA", "NPCKP34D", "1"), c("NPCKP34EA", "NPCKP34E", "1"), c("NPCKP35AA", "NPCKP35A", "1")
   )) {
-    add(par[1], "05_rama_asalariados", .diag_k_and(asalariado, eq(par[2], as.numeric(par[3]))), paste0("asalariado & ", par[2], " == ", par[3]))
+    add(par[1], "05_rama_asalariados", .diag_k_and(asalariado, eq(par[2], as.numeric(par[3]))), paste0("(", regla_base_asalariados, ") & ", par[2], " == ", par[3]))
   }
-  add("NPCKP29B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP29", 1)), paste0(variable_k23_final, " %in% c(1,2,3,7) & NPCKP29 == 1"))
-  add("NPCKP30B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP30", 1)), paste0(variable_k23_final, " %in% c(1,2,3,7) & NPCKP30 == 1"))
-  add("NPCKP31B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP31", 1)), paste0(variable_k23_final, " %in% c(1,2,3,7) & NPCKP31 == 1"))
-  add("NPCKP32B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP32", 1)), paste0(variable_k23_final, " %in% c(1,2,3,7) & NPCKP32 == 1"))
+  add("NPCKP29B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP29", 1)), paste0("(", regla_base_asalariados, ") & NPCKP29 == 1"))
+  add("NPCKP30B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP30", 1)), paste0("(", regla_base_asalariados, ") & NPCKP30 == 1"))
+  add("NPCKP31B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP31", 1)), paste0("(", regla_base_asalariados, ") & NPCKP31 == 1"))
+  add("NPCKP32B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP32", 1)), paste0("(", regla_base_asalariados, ") & NPCKP32 == 1"))
 
   add_many(c("NPCKP36", "NPCKP37", "NPCKP43_1", "NPCKP44_1"),
-           "06_rama_independientes", independiente, paste0(variable_k23_final, " %in% c(4,5,8)"))
-  add("NPCKP43_1A", "06_rama_independientes", .diag_k_and(independiente, eq("NPCKP43_1", 1)), "independiente & NPCKP43_1 == 1", texto_libre = TRUE)
-  add("NPCKP44_1A", "06_rama_independientes", .diag_k_and(independiente, eq("NPCKP44_1", 11)), "independiente & NPCKP44_1 == 11", texto_libre = TRUE)
+           "06_rama_independientes", independiente, regla_base_independientes)
+  add("NPCKP43_1A", "06_rama_independientes", .diag_k_and(independiente, eq("NPCKP43_1", 1)), paste0("(", regla_base_independientes, ") & NPCKP43_1 == 1"), texto_libre = TRUE)
+  add("NPCKP44_1A", "06_rama_independientes", .diag_k_and(independiente, eq("NPCKP44_1", 11)), paste0("(", regla_base_independientes, ") & NPCKP44_1 == 11"), texto_libre = TRUE)
 
   add_many(c(
     "NPCKP38A", "NPCKP38B", "NPCKP39", "NPCKP41", "NPCKP43", "NPCKP44",
     "NPCKP44A", "NPCKP47", "NPCKNP48"
-  ), "07_bloque_comun_ocupados", ocupado_k23, paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8)"))
+  ), "07_bloque_comun_ocupados", ocupado_k23, regla_base_ocupados)
   add_many(c(
-    "NPCKP45A", "NPCKP45B", "NPCKP45C", "NPCKP45D", "NPCKP45E",
+    "NPCKP45C", "NPCKP45D", "NPCKP45E",
     "NPCKP45F", "NPCKP45G", "NPCKP45H", "NPCKP45I", "NPCKP45J",
-    "NPCKP45K", "NPCKP45L", "NPCKP45M", "NPCKP45N", "NPCKP45Q",
-    "NPCKP45O", "NPCKP46B"
-  ), "07_bloque_comun_ocupados", transporte_ocupados, paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8) & NPCKP44A != 1"))
-  add("NPCKPA46", "07_bloque_comun_ocupados", transporte_bogota_soacha, paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8) & NPCKP44A != 1 & MPIO %in% c(11001,25754)"))
-  add("NPCKP40", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, lt("NPCKP39", 40)), "ocupado & NPCKP39 < 40")
-  add("NPCKP40A", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP40", 3)), "ocupado & NPCKP40 == 3", texto_libre = TRUE)
-  add("NPCKP42", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, lt("NPCKP41", "NPCKP39")), "ocupado & NPCKP41 < NPCKP39")
-  add("NPCKP42A", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP42", 7)), "ocupado & NPCKP42 == 7", texto_libre = TRUE)
-  add("NPCKP44A1", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP44A", 11)), "ocupado & NPCKP44A == 11", texto_libre = TRUE)
-  add("NPCKP46AB", "07_bloque_comun_ocupados", transporte_no_bogota_soacha, paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8) & NPCKP44A != 1 & !(MPIO %in% c(11001,25754))"))
-  add("NPCKP46AC", "07_bloque_comun_ocupados", transporte_no_bogota_soacha, paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8) & NPCKP44A != 1 & !(MPIO %in% c(11001,25754))"))
-  add("NPCKP46AD", "07_bloque_comun_ocupados", transporte_bogota_soacha, paste0(variable_k23_final, " %in% c(1,2,3,4,5,6,7,8) & NPCKP44A != 1 & MPIO %in% c(11001,25754)"), texto_libre = TRUE)
-  add("NPCKP47A", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP47", 1)), "ocupado & NPCKP47 == 1")
-  add_many(c("NPCKNP48B", "NPCKNP48C", "NPCKNP48D"), "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKNP48", 1)), "ocupado & NPCKNP48 == 1")
-  add("NPCKNP48D1", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKNP48", 1)), "ocupado & NPCKNP48 == 1")
+    "NPCKP45K", "NPCKP45M", "NPCKP45N", "NPCKP45Q",
+    "NPCKP45O"
+  ), "07_bloque_comun_ocupados", transporte_ocupados, regla_base_transporte)
+  add_many(c("NPCKP45A", "NPCKP45B"),
+           "07_bloque_comun_ocupados",
+           transporte_bogota_soacha,
+           paste0("(", regla_base_transporte, ") & MPIO %in% c(11001,25754)"))
+  add(
+    "NPCKP45L",
+    "07_bloque_comun_ocupados",
+    transporte_caballo_k53,
+    paste0(
+      "(",
+      regla_base_transporte,
+      ") & ",
+      "(MPIO != 11001 | (MPIO == 11001 & CLASE %in% c(2,3)))"
+    ),
+    condicion_debe_responder = paste0(
+      "NPCKP45L debe responder si ",
+      regla_base_transporte,
+      " y ",
+      "(MPIO != 11001 | (MPIO == 11001 & CLASE %in% c(2,3)))."
+    ),
+    variables_previas_usadas = paste("edad", variable_k23_final, "NPCKP44A", "MPIO", "CLASE", sep = ", "),
+    universo_base = "Personas de 10 anos o mas ocupadas que no trabajan principalmente en esta vivienda",
+    comentario = "NPCKP45L corresponde a la opcion Caballo de K53 y aplica para Bogota rural y para los demas municipios."
+  )
+  add(
+    "NPCKPA46",
+    "07_bloque_comun_ocupados",
+    transporte_ocupados,
+    regla_base_transporte,
+    comentario = "K55 pregunta si el lugar de trabajo esta ubicado en este municipio u otro municipio."
+  )
+  add("NPCKP40", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, lt("NPCKP39", 40)), paste0("(", regla_base_ocupados, ") & NPCKP39 < 40"))
+  add("NPCKP40A", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP40", 3)), paste0("(", regla_base_ocupados, ") & NPCKP40 == 3"), texto_libre = TRUE)
+  add("NPCKP42", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, lt("NPCKP41", "NPCKP39")), paste0("(", regla_base_ocupados, ") & NPCKP41 < NPCKP39"))
+  add("NPCKP42A", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP42", 7)), paste0("(", regla_base_ocupados, ") & NPCKP42 == 7"), texto_libre = TRUE)
+  add("NPCKP44A1", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP44A", 11)), paste0("(", regla_base_ocupados, ") & NPCKP44A == 11"), texto_libre = TRUE)
+  add(
+    "NPCKP46AB",
+    "07_bloque_comun_ocupados",
+    transporte_otro_municipio,
+    paste0("(", regla_base_transporte, ") & NPCKPA46 == 2"),
+    comentario = "K55 Departamento se responde cuando en la pregunta madre NPCKPA46 se informa otro municipio."
+  )
+  add(
+    "NPCKP46AC",
+    "07_bloque_comun_ocupados",
+    transporte_otro_municipio,
+    paste0("(", regla_base_transporte, ") & NPCKPA46 == 2"),
+    comentario = "K55 Municipio se responde cuando en la pregunta madre NPCKPA46 se informa otro municipio."
+  )
+  add(
+    "NPCKP46B",
+    "07_bloque_comun_ocupados",
+    transporte_ocupados,
+    regla_base_transporte,
+    comentario = "Pendiente de validacion operativa: confirmar si la categoria No se desplaza exige cero minutos o salta NPCKP46B."
+  )
+  add(
+    "NPCKP46AD",
+    "07_bloque_comun_ocupados",
+    transporte_bogota_soacha,
+    paste0("(", regla_base_transporte, ") & MPIO %in% c(11001,25754)"),
+    comentario = "Pendiente de validacion operativa: confirmar si la direccion depende del municipio de residencia o del municipio del lugar de trabajo.",
+    texto_libre = TRUE
+  )
+  add("NPCKP47A", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKP47", 1)), paste0("(", regla_base_ocupados, ") & NPCKP47 == 1"))
+  add_many(c("NPCKNP48B", "NPCKNP48C", "NPCKNP48D"), "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKNP48", 1)), paste0("(", regla_base_ocupados, ") & NPCKNP48 == 1"))
+  add("NPCKNP48D1", "07_bloque_comun_ocupados", .diag_k_and(ocupado_k23, eq("NPCKNP48", 1)), paste0("(", regla_base_ocupados, ") & NPCKNP48 == 1"))
 
   add("NPCKP47B", "08_no_ocupados_posterior", .diag_k_and(universo_k, eq("NPCKP13", 1)), "NPCKP13 == 1")
-  add("NPCKP47C", "08_no_ocupados_posterior", no_ocupado, "NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor")
-  add_many(c("NPCKP60_1", "NPCKP60_2"), "08_no_ocupados_posterior", tiene_valor("NPCKP47C"), "NPCKP47C tiene valor")
-  add("NPCKP61_1", "08_no_ocupados_posterior", .diag_k_and(universo_k, eq("NPCKP47C", 2)), "NPCKP47C == 2")
-  add("NPCKP61_2", "08_no_ocupados_posterior", eq("NPCKP61_1", 9), "NPCKP61_1 == 9", texto_libre = TRUE)
-  add("NPCKP48", "08_no_ocupados_posterior", no_ocupado, "NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor")
-  add("NPCKP48A", "08_no_ocupados_posterior", eq("NPCKP48", 1), "NPCKP48 == 1")
+  add("NPCKP47C", "08_no_ocupados_posterior", no_ocupado, regla_base_k59)
+  add(
+    "NPCKP60_1",
+    "08_no_ocupados_posterior",
+    .diag_k_and(no_ocupado, eq("NPCKP47C", 2)),
+    regla_k60_k61,
+    variables_previas_usadas = "edad, NPCKP1, NPCKP7, NPCKP13, NPCKP47C",
+    universo_base = "Personas de 10 anos o mas que llegan a K59",
+    comentario = comentario_k60_k61
+  )
+  add(
+    "NPCKP60_2",
+    "08_no_ocupados_posterior",
+    .diag_k_and(no_ocupado, eq("NPCKP47C", 2)),
+    regla_k60_k61,
+    variables_previas_usadas = "edad, NPCKP1, NPCKP7, NPCKP13, NPCKP47C",
+    universo_base = "Personas de 10 anos o mas que llegan a K59",
+    comentario = comentario_k60_k61
+  )
+  add(
+    "NPCKP61_1",
+    "08_no_ocupados_posterior",
+    .diag_k_and(no_ocupado, eq("NPCKP47C", 2)),
+    regla_k60_k61,
+    variables_previas_usadas = "edad, NPCKP1, NPCKP7, NPCKP13, NPCKP47C",
+    universo_base = "Personas de 10 anos o mas que llegan a K59",
+    comentario = comentario_k60_k61
+  )
+  add(
+    "NPCKP61_2",
+    "08_no_ocupados_posterior",
+    .diag_k_and(no_ocupado, eq("NPCKP47C", 2), eq("NPCKP61_1", 9)),
+    paste0(regla_k60_k61, " & NPCKP61_1 == 9"),
+    variables_previas_usadas = "edad, NPCKP1, NPCKP7, NPCKP13, NPCKP47C, NPCKP61_1",
+    universo_base = "Personas de 10 anos o mas que llegan a K59 y continuan a K60-K61",
+    comentario = comentario_k60_k61,
+    texto_libre = TRUE
+  )
+  add("NPCKP48", "08_no_ocupados_posterior", no_ocupado, regla_base_k59)
+  add("NPCKP48A", "08_no_ocupados_posterior", .diag_k_and(no_ocupado, eq("NPCKP48", 1)), paste0("(", regla_base_k59, ") & NPCKP48 == 1"))
 
-  add_many(c("NPCKP50_A", "NPCKP50_B"), "09_pensiones_ingresos", ocupados_o_no_ocupados, paste0("edad >= 10 & (NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor | ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8))"))
-  add("NPCKP50", "09_pensiones_ingresos", ocupados_o_no_ocupados, paste0("edad >= 10 & (NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor | ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8))"))
-  add("NPCKP51", "09_pensiones_ingresos", .diag_k_and(universo_k, eq("NPCKP50", 1)), "NPCKP50 == 1")
+  add_many(c("NPCKP50_A", "NPCKP50_B"), "09_pensiones_ingresos", ocupados_o_no_ocupados, regla_base_k3)
+  add(
+    "NPCKP50",
+    "09_pensiones_ingresos",
+    base_k3_15,
+    regla_base_k3_15,
+    comentario = "Se incorpora restriccion explicita del formulario: K64/NPCKP50 solo se formula a personas de 15 anos y mas."
+  )
+  add(
+    "NPCKP51",
+    "09_pensiones_ingresos",
+    .diag_k_and(base_k3_15, eq("NPCKP50", 1)),
+    paste0("(", regla_base_k3_15, ") & NPCKP50 == 1"),
+    comentario = "NPCKP51 depende de K64/NPCKP50; aplica solo a personas de 15 anos y mas y cuando NPCKP50 == 1."
+  )
   for (par in list(
     c("NPCKP52", "NPCKP52A"), c("NPCKP53", "NPCKP53A"), c("NPCKP54", "NPCKP54A"),
     c("NPCKP55", "NPCKP55A"), c("NPCKP56", "NPCKP56A"), c("NPCKP57", "NPCKP57A"),
     c("NPCKP58", "NPCKP58A")
   )) {
-    add(par[1], "09_pensiones_ingresos", ocupados_o_no_ocupados, paste0("edad >= 10 & (NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor | ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8))"))
-    add(par[2], "09_pensiones_ingresos", eq(par[1], 1), paste0(par[1], " == 1"))
+    add(par[1], "09_pensiones_ingresos", ocupados_o_no_ocupados, regla_base_k3)
+    add(par[2], "09_pensiones_ingresos", .diag_k_and(base_k3, eq(par[1], 1)), paste0("(", regla_base_k3, ") & ", par[1], " == 1"))
   }
-  add("NPCKP56B", "09_pensiones_ingresos", eq("NPCKP56", 1), "NPCKP56 == 1")
+  add("NPCKP56B", "09_pensiones_ingresos", .diag_k_and(base_k3, eq("NPCKP56", 1)), paste0("(", regla_base_k3, ") & NPCKP56 == 1"))
 
-  add("NPCKP73_1", "10_emprendimiento_renta", ocupados_o_no_ocupados, paste0("edad >= 10 & (NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor | ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8))"))
-  add_many(c("NPCKP73_1A", "NPCKP74_1", "NPCKP75_1"), "10_emprendimiento_renta", eq("NPCKP73_1", 1), "NPCKP73_1 == 1")
-  add("NPCKPN62A", "10_emprendimiento_renta", .diag_k_and(universo_k, gt_val(edad, 17), .diag_k_or(in_set("NPCKP75_1", c(1, 2, 3)), eq("NPCKP73_1", 2))), "edad >= 18 & (NPCKP75_1 %in% c(1,2,3) | NPCKP73_1 == 2)")
-  add("NPCKPN62B", "10_emprendimiento_renta", .diag_k_and(universo_k, eq("NPCKPN62A", 1)), "NPCKPN62A == 1", texto_libre = TRUE)
+  add("NPCKP73_1", "10_emprendimiento_renta", ocupados_o_no_ocupados, regla_base_k3)
+  add_many(c("NPCKP73_1A", "NPCKP74_1", "NPCKP75_1"), "10_emprendimiento_renta", .diag_k_and(base_k3, eq("NPCKP73_1", 1)), paste0("(", regla_base_k3, ") & NPCKP73_1 == 1"))
+  add("NPCKPN62A", "10_emprendimiento_renta", base_k3_18, regla_base_k3_18, comentario = "Se incorpora restriccion explicita del formulario: K76 solo se formula a personas de 18 anos y mas.")
+  add("NPCKPN62B", "10_emprendimiento_renta", .diag_k_and(base_k3_18, eq("NPCKPN62A", 1)), paste0("(", regla_base_k3_18, ") & NPCKPN62A == 1"), texto_libre = TRUE)
 
   vars_labores <- c("NPCKP59A", "NPCKP59B", "NPCKP59C", "NPCKP59D", "NPCKP59E", "NPCKP59F", "NPCKP59G", "NPCKP59H", "NPCKP59I", "NPCKP59J")
-  add_many(vars_labores, "11_labores_no_remuneradas", ocupados_o_no_ocupados, paste0("edad >= 10 & (NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor | ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8))"))
+  add_many(vars_labores, "11_labores_no_remuneradas", ocupados_o_no_ocupados, regla_base_k3)
   horas <- c(NPCKP59A = "NPCKP59AA", NPCKP59B = "NPCKP59BA", NPCKP59C = "NPCKP59CA", NPCKP59D = "NPCKP59DA", NPCKP59E = "NPCKP59EA", NPCKP59F = "NPCKP59FA", NPCKP59G = "NPCKP59GA", NPCKP59H = "NPCKP59HA", NPCKP59I = "NPCKP59IA", NPCKP59J = "NPCKP59JA")
   for (base in names(horas)) {
-    add(horas[[base]], "11_labores_no_remuneradas", eq(base, 1), paste0(base, " == 1"))
+    add(horas[[base]], "11_labores_no_remuneradas", .diag_k_and(base_k3, eq(base, 1)), paste0("(", regla_base_k3, ") & ", base, " == 1"))
   }
 
-  add_many(c("NPCKP78_1", "NPCKP78_2"), "12_acoso_laboral", mayor_18_ocupados_o_no_ocupados, paste0("edad >= 18 & (NPCKP1 == 5 | NPCKP7 == 2 | NPCKP13 == 2 | NPCKP47B tiene valor | ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8))"))
+  add_many(c("NPCKP78_1", "NPCKP78_2"), "12_acoso_laboral", mayor_18_ocupados_o_no_ocupados, regla_base_k3_18)
 
   reglas
 }

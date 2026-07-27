@@ -150,17 +150,30 @@ Variables de diagnóstico:
 
 ### 4. Dejar instrucciones de validación manual
 
-El agente no debe ejecutar automáticamente pruebas pesadas.  
-Después de modificar código, debe dejar instrucciones para que el usuario valide manualmente en RStudio, comenzando por:
+El agente puede crear, modificar y ejecutar pruebas unitarias específicas cuando utilicen exclusivamente datos sintéticos construidos dentro del propio archivo de prueba.
+
+El usuario mantiene el control exclusivo sobre:
+
+- la carga y el procesamiento de bases reales;
+- la ejecución de scripts operativos;
+- los diagnósticos completos;
+- las imputaciones;
+- la generación de salidas;
+- la validación sustantiva en RStudio.
+
+Después de modificar código, el agente debe preparar instrucciones exactas para que el usuario valide manualmente los resultados sobre datos reales, comenzando por:
 
 ```r
-devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+devtools::load_all(
+  "C:/Users/gomez/OneDrive/Documentos/analisisem2025"
+)
 ```
 
-`devtools::check()` solo debe sugerirse cuando sea estrictamente necesario y no debe ejecutarse sin autorización explícita del usuario.
+`devtools::check()` no debe ejecutarse ni sugerirse como validación rutinaria. Solo puede proponerse cuando sea estrictamente necesario, explicando previamente su alcance y solicitando autorización.
 
 ### 5. Utilizar funciones existentes
-Las funciones existentes ya resolvieron muchos de los problemas emergentes. Usar siempre las funciones del paquete. Solo cuando no existan y sea estrictamente necesario crear nuevas.
+
+Las funciones existentes ya resolvieron muchos de los problemas emergentes. Usar siempre las funciones del paquete. Solo crear funciones nuevas cuando no exista una alternativa y sea estrictamente necesario.
 
 ---
 
@@ -298,27 +311,25 @@ El diccionario oficial de la encuesta se encuentra en:
 ```text
 inst/diccionario/Diccionario_em2025.xlsx
 ```
-Las descripciones de variables provienen de ese mismo diccionario oficial.
 
 Contiene:
+
 - Nombre de variable
 - Descripción
 - Dominio
 - Tipo
 
-Regla:
-- Toda variable usada en validaciones debe poder mapearse al diccionario
-- Usar nombres en mayúscula
-- Normalizar espacios y encoding
+Reglas:
 
-Las descripciones de variables provienen del diccionario oficial:
-
-inst/diccionario/diccionario_em2025.xlsx
+- Toda variable usada en validaciones debe poder mapearse al diccionario.
+- Usar nombres de variables en mayúscula.
+- Normalizar espacios y codificación de texto.
 
 Convenciones:
-- Variables en errores: error_<VAR>
-- Para buscar descripción: limpiar prefijos y usar nombre base
-- Usar get_desc_fina() cuando esté disponible
+
+- Variables en errores: `error_<VAR>`.
+- Para buscar la descripción, limpiar prefijos y usar el nombre base.
+- Usar `get_desc_fina()` cuando esté disponible.
 
 ---
 
@@ -374,133 +385,312 @@ Antes de concluir que existe una caída, el agente debe verificar:
 ⚠️ Conclusión:
 Una caída es el resultado de la aplicación explícita de reglas de validación, no de diferencias descriptivas entre capítulos.
 
-## Protocolo de trabajo del agente: edición sí, pruebas pesadas no (CRÍTICO)
 
-El agente debe actuar como asistente de edición y revisión del repositorio, no como ejecutor autónomo de pruebas pesadas ni de pipelines completos.
+## Protocolo de trabajo del agente: edición local sin ejecución de datos (CRÍTICO)
 
-### Regla principal
+El agente actúa exclusivamente como asistente de inspección estática, edición y revisión del paquete.
+
+La ejecución sobre datos reales, los scripts operativos, el procesamiento de información y la validación sustantiva corresponden exclusivamente al usuario en su sesión local de RStudio.
+
+El agente puede ejecutar únicamente pruebas unitarias específicas con datos completamente sintéticos, bajo las condiciones definidas en este documento.
+
+### Repositorio operativo único
+
+El repositorio operativo y canónico es:
+
+```text
+C:/Users/gomez/OneDrive/Documentos/analisisem2025
+```
+
+Todos los cambios del paquete deben realizarse directamente en esa carpeta.
+
+No crear, utilizar ni modificar:
+
+```text
+C:/Users/gomez/.codex/worktrees/...
+```
+
+ni otros worktrees, clones, copias temporales o repositorios alternativos, salvo autorización expresa del usuario.
+
+Si una rama necesaria está activa en otro worktree, el agente debe detenerse, informar al usuario y esperar instrucciones. No debe continuar el desarrollo en ese worktree, eliminarlo ni descartar cambios.
+
+El usuario recupera inmediatamente los cambios mediante:
+
+```r
+devtools::load_all(
+  "C:/Users/gomez/OneDrive/Documentos/analisisem2025"
+)
+```
+
+Una modificación no se considera entregada hasta que el archivo actualizado se encuentre físicamente en este repositorio local.
+
+### Uso de Git y GitHub
+
+Git y GitHub se utilizan para:
+
+- administrar ramas;
+- revisar diferencias;
+- versionar y respaldar cambios;
+- integrar posteriormente los cambios a `main`.
+
+El agente no debe trabajar directamente sobre `main`.
+
+Antes de modificar archivos, debe verificar la rama activa y el estado del repositorio mediante:
+
+```powershell
+git -C "C:\Users\gomez\OneDrive\Documentos\analisisem2025" status -sb
+```
+
+No debe cambiar de rama ni modificar el estado de Git sin autorización expresa.
+
+### Acciones permitidas
 
 El agente puede:
 
-- leer la estructura del paquete;
-- inspeccionar funciones y dependencias;
-- proponer planes de cambio;
-- modificar archivos de código, documentación o tests cuando el usuario lo autorice;
-- dejar instrucciones claras para validación manual.
+- inspeccionar archivos de código del paquete;
+- inspeccionar pruebas existentes;
+- buscar funciones, objetos y dependencias;
+- revisar diferencias de Git;
+- modificar funciones, documentación o pruebas cuando la tarea lo autorice;
+- crear, modificar y ejecutar pruebas unitarias específicas con datos completamente sintéticos;
+- cargar el paquete local mediante `devtools::load_all()` únicamente para ejecutar esas pruebas sintéticas;
+- ejecutar `testthat::test_file()` únicamente sobre archivos de prueba específicos relacionados con la tarea;
+- preparar scripts o bloques de validación para que el usuario los ejecute sobre datos reales;
+- ejecutar comandos livianos de inspección estática.
 
-El agente NO debe ejecutar automáticamente:
-
-- pipelines completos de la encuesta;
-- procesos sobre bases grandes;
-- `devtools::check()`;
-- renderizados de Quarto;
-- scripts de análisis completos;
-- exportaciones masivas;
-- comandos que puedan tardar mucho o modificar grandes volúmenes de archivos;
-- `git commit`, `git push`, `git merge` o cambios de rama sin autorización explícita.
-
-### Pruebas y validación
-
-La validación sustantiva será realizada por el usuario en RStudio.
-
-Cuando el agente modifique código, debe entregar al final:
-
-1. archivos modificados;
-2. resumen técnico de los cambios;
-3. explicación de la lógica ajustada;
-4. supuestos aplicados;
-5. riesgos o posibles efectos colaterales;
-6. instrucciones exactas para que el usuario pruebe manualmente;
-7. ejemplo mínimo de validación usando `devtools::load_all()`.
-
-Ejemplo esperado de instrucciones de prueba:
-
-```r
-devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
-```
-
-Luego ejecutar manualmente la función modificada con objetos ya cargados por el usuario en RStudio.
-
-### Ejecución de comandos
-
-El agente solo puede ejecutar comandos livianos de inspección, por ejemplo:
+Comandos permitidos, entre otros:
 
 ```text
 git status
 git diff
+git diff --stat
+git branch --show-current
 ls
-grep
+dir
 find
+grep
+rg
 Get-Content
 Get-ChildItem
 Select-String
-rg
 ```
 
-No debe ejecutar comandos que cambien el estado del repositorio o del entorno sin autorización.
+### Prohibición de acceso y ejecución sobre datos
+
+El agente no debe cargar, abrir, inspeccionar, resumir ni procesar bases de datos reales de la encuesta.
+
+Sin autorización expresa del usuario, no debe acceder a archivos operativos ubicados fuera del repositorio del paquete, incluyendo carpetas como:
+
+```text
+C:/Users/gomez/OneDrive/DANE/Multiproposito/...
+C:/Users/gomez/OneDrive/Documentos/Validaciones_EM_Basicas_2026/...
+```
+
+Solo puede modificar un script operativo externo cuando el usuario autorice explícitamente su ruta exacta. Esa autorización de edición no implica autorización para ejecutarlo ni para acceder a los datos que utiliza.
+
+El agente no debe ejecutar comandos o funciones que carguen datos reales, scripts operativos o conjuntos amplios de pruebas, incluyendo:
+
+```text
+readRDS()
+read.csv()
+read_csv()
+read_csv2()
+read_excel()
+arrow::read_parquet()
+load()
+source()
+devtools::test()
+devtools::check()
+devtools::document()
+testthat::test_dir()
+quarto::quarto_render()
+```
+
+`devtools::load_all()` y `testthat::test_file()` están permitidos exclusivamente para cargar el paquete local y ejecutar un archivo de pruebas unitarias sintéticas específico. No pueden utilizarse para acceder a bases reales, diccionarios operativos, scripts externos ni resultados de la encuesta.
+
+Tampoco debe ejecutar:
+
+- funciones del paquete;
+- diagnósticos completos;
+- pipelines de la encuesta;
+- scripts operativos;
+- conteos o frecuencias sobre registros reales;
+- exportaciones RDS, Excel, CSV o Parquet;
+- renderizados de Quarto;
+- procesos de imputación;
+- validaciones que requieran cargar objetos de datos.
+
+Esta prohibición aplica aunque la ejecución parezca rápida o liviana.
+
+### Pruebas unitarias sintéticas
+
+El agente puede crear, modificar y ejecutar pruebas unitarias cuando utilicen exclusivamente datos sintéticos construidos dentro del propio archivo de prueba.
+
+Se consideran pruebas sintéticas aquellas que:
+
+- crean todos sus datos mediante `tibble()`, `data.frame()`, vectores, listas u otros objetos definidos dentro del test;
+- no leen archivos externos;
+- no utilizan registros reales de la encuesta;
+- no acceden a rutas operativas fuera del repositorio;
+- no dependen de objetos previamente cargados por el usuario;
+- no generan exportaciones con información real;
+- tienen alcance limitado a las funciones o reglas modificadas.
+
+El agente puede ejecutar:
+
+```r
+ruta_paquete <-
+  "C:/Users/gomez/OneDrive/Documentos/analisisem2025"
+
+devtools::load_all(
+  ruta_paquete
+)
+
+testthat::test_file(
+  file.path(
+    ruta_paquete,
+    "tests/testthat/archivo_de_prueba.R"
+  )
+)
+```
+
+También puede ejecutar un archivo de prueba específico relacionado directamente con la tarea.
+
+No debe ejecutar automáticamente:
+
+```r
+devtools::test()
+testthat::test_dir()
+devtools::check()
+```
+
+Estos comandos pueden activar conjuntos amplios de pruebas o procesos no relacionados y requieren autorización expresa del usuario.
+
+Incluso dentro de una prueba, el agente no debe ejecutar funciones que accedan a información real o archivos operativos, como:
+
+```r
+readRDS()
+read.csv()
+readr::read_csv()
+readr::read_csv2()
+readxl::read_excel()
+arrow::read_parquet()
+load()
+source()
+```
+
+Después de ejecutar pruebas sintéticas, el agente debe informar:
+
+1. archivo de prueba ejecutado;
+2. pruebas creadas o modificadas;
+3. resultado `PASS`, `FAIL`, `WARN` y `SKIP`;
+4. causa de cualquier falla;
+5. si la falla corresponde al código del paquete o al diseño del test;
+6. ajustes realizados para corregirla.
+
+Una tarea no debe presentarse como validada cuando las pruebas sintéticas relacionadas todavía reporten fallas.
+
+La ejecución de pruebas sintéticas no reemplaza la validación final del usuario sobre los datos reales.
+
+### Scripts operativos
+
+Los scripts operativos pueden encontrarse fuera del paquete, especialmente en:
+
+```text
+C:/Users/gomez/OneDrive/Documentos/Validaciones_EM_Basicas_2026
+```
+
+El agente no debe ejecutarlos.
+
+Solo puede modificarlos cuando el usuario autorice explícitamente el archivo exacto.
+
+Cuando una función del paquete cambie, el agente debe indicar qué script o sección debe volver a ejecutar el usuario, pero no debe realizar la ejecución.
+
+Los scripts operativos deben cargar siempre el paquete desde:
+
+```r
+devtools::load_all(
+  "C:/Users/gomez/OneDrive/Documentos/analisisem2025"
+)
+```
+
+Los scripts operativos no deben duplicar reglas, funciones o lógica ya implementadas en el paquete.
+
+La separación esperada es:
+
+- el paquete contiene funciones, reglas y validaciones reutilizables;
+- los scripts operativos cargan bases, llaman las funciones y generan salidas;
+- las bases y resultados se almacenan fuera del repositorio del paquete.
+
 ### Antes de modificar archivos
 
 Antes de editar, el agente debe:
 
-- identificar las funciones relevantes;
-- identificar los archivos que tocaría;
-- explicar el cambio mínimo propuesto;
-- esperar aprobación del usuario si el cambio puede afectar resultados existentes.
+1. confirmar la ruta del repositorio operativo;
+2. verificar la rama activa;
+3. ejecutar `git status -sb`;
+4. identificar los archivos relacionados con la tarea;
+5. detectar cambios previos ajenos;
+6. explicar el cambio mínimo propuesto;
+7. conservar sin alteración los cambios ajenos.
+
+Si el cambio puede afectar resultados existentes y la instrucción del usuario no lo autoriza explícitamente, debe explicar el impacto y esperar aprobación.
 
 ### Después de modificar archivos
 
 Después de editar, el agente debe reportar:
 
-Archivos modificados:
-- R/archivo_1.R
-- man/archivo_1.Rd, si aplica
-- NAMESPACE, si aplica
+1. rama activa;
+2. archivos modificados;
+3. funciones o reglas modificadas;
+4. lógica anterior y lógica nueva;
+5. pruebas sintéticas creadas o actualizadas;
+6. archivo de prueba ejecutado y resultado `PASS`, `FAIL`, `WARN` y `SKIP`;
+7. supuestos aplicados;
+8. riesgos o posibles efectos colaterales;
+9. `git diff --stat`;
+10. `git status -sb`;
+11. comandos exactos para que el usuario cargue el paquete;
+12. comandos exactos para que el usuario repita las pruebas, cuando resulte útil;
+13. comandos exactos para que el usuario regenere las salidas afectadas con datos reales.
 
-Cambios realizados:
-- ...
+### Restricciones de Git
 
-Supuestos:
-- ...
+No ejecutar sin autorización expresa:
 
-Riesgos:
-- ...
-
-Cómo probar manualmente:
-- ...
-
-### Regla de seguridad
-
-Si una tarea requiere comprobar resultados sobre bases grandes, el agente debe preparar el código o las instrucciones, pero no ejecutar la prueba. El usuario será quien corra la validación final en RStudio.
-
-## Flujo local Codex-OneDrive (CRITICO)
-
-El agente puede estar trabajando en un worktree de Codex distinto a la carpeta que el usuario carga manualmente en RStudio.
-
-Rutas relevantes:
-
-- Worktree de Codex: `C:/Users/gomez/.codex/worktrees/ffb5/analisisem2025`
-- Paquete local del usuario: `C:/Users/gomez/OneDrive/Documentos/analisisem2025`
-
-### Regla operativa
-
-Antes de modificar codigo, el agente debe verificar el estado de ambas rutas con comandos livianos (`git status --short`) y reconocer si existen cambios en OneDrive que no estan en el worktree.
-
-Si el usuario valida en RStudio con:
-
-```r
-devtools::load_all("C:/Users/gomez/OneDrive/Documentos/analisisem2025")
+```text
+git add
+git commit
+git push
+git pull
+git merge
+git switch
+git checkout
+git restore
+git reset
+git clean
 ```
 
-entonces los cambios finales tambien deben quedar sincronizados en la carpeta de OneDrive.
+Al preparar un commit autorizado, agregar únicamente los archivos relacionados con la tarea mediante rutas explícitas. No usar `git add -A`.
 
-### Sincronizacion segura
+No eliminar worktrees ni descartar cambios sin autorización.
 
-- Sincronizar primero desde OneDrive hacia el worktree cuando OneDrive tenga cambios locales que el worktree no refleja.
-- Despues de editar en el worktree, copiar a OneDrive solo los archivos modificados por el agente y necesarios para la tarea.
-- No sobrescribir cambios ajenos ni reemplazar carpetas completas sin revisar.
-- Si un archivo fue modificado en ambas rutas de manera incompatible, detenerse y pedir instruccion antes de continuar.
-- Reportar al final que archivos quedaron sincronizados en OneDrive.
+### Documentación del paquete
 
-### Validacion
+No ejecutar:
 
-La validacion manual que se entregue al usuario debe usar por defecto la ruta de OneDrive, porque esa es la ruta que el usuario carga en RStudio.
+```r
+devtools::document()
+```
+
+salvo autorización expresa y revisión previa de su alcance.
+
+No modificar manualmente `NAMESPACE` ni archivos de `man/` salvo autorización expresa y específica.
+
+### Regla final de seguridad
+
+Lionarx modifica el código del paquete local y puede ejecutar pruebas unitarias específicas con datos completamente sintéticos.
+
+El usuario procesa las bases reales, ejecuta los scripts operativos, genera las salidas y realiza la validación sustantiva en su propio entorno de RStudio.
+
+El agente no debe cargar, inspeccionar ni comprobar resultados utilizando información real de la encuesta.
