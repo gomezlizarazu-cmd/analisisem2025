@@ -310,21 +310,24 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
     out
   }
 
-  llega_K17 <- universo_k & (
-    num_col("NPCKP18") %in% 2 |
-      num_col("NPCKP19") %in% c(1, 9) |
-      num_col("NPCKP20") %in% c(1, 2, 9)
+  entrada_ocupados <- universo_k & (
+    num_col("NPCKP2_1") %in% 1 |
+      num_col("NPCKP2") %in% 1 |
+      (num_col("NPCKP3") %in% 1 & num_col("NPCKP5_1") %in% 1:4) |
+      (num_col("NPCKP3") %in% 1 & num_col("NPCKP5_1") %in% 5:8 & num_col("NPCKP6_1") %in% 1) |
+      ((num_col("NPCKP3") %in% 2 | num_col("NPCKP6_1") %in% c(2, 3)) & num_col("NPCKP4") %in% 1)
   )
 
-  ocupado_k23 <- universo_k & num_col("NPCKP17") %in% 1:8
+  llega_K17 <- entrada_ocupados
+
+  ocupado_k23 <- entrada_ocupados & num_col("NPCKP17") %in% 1:8
   no_ocupado <- universo_k & (
     num_col("NPCKP1") %in% 5 |
       num_col("NPCKP7") %in% 2 |
-      num_col("NPCKP13") %in% 2 |
-      tiene_valor("NPCKP47B")
+      num_col("NPCKP13") %in% c(1, 2)
   )
-  ocupados_o_no_ocupados <- universo_k & (ocupado_k23 | no_ocupado)
-  mayor_18_ocupados_o_no_ocupados <- !is.na(edad) & edad >= 18 & (ocupado_k23 | no_ocupado)
+  ocupados_o_no_ocupados <- ocupado_k23 | no_ocupado
+  mayor_18_ocupados_o_no_ocupados <- !is.na(edad) & edad >= 18 & ocupados_o_no_ocupados
 
   llega_K45 <- ocupado_k23
 
@@ -393,13 +396,7 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
 
   llega_K73 <- ocupados_o_no_ocupados
 
-  llega_K76 <- universo_k &
-    !is.na(edad) &
-    edad >= 18 &
-    (
-      num_col("NPCKP73_1") %in% 2 |
-        num_col("NPCKP75_1") %in% c(1, 2, 3)
-    )
+  llega_K76 <- !is.na(edad) & edad >= 18 & ocupados_o_no_ocupados
 
   llega_K77 <- ocupados_o_no_ocupados
 

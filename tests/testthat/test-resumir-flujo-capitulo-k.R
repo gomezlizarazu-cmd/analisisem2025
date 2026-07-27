@@ -10,7 +10,7 @@ test_that("resumir_flujo_capitulo_k devuelve una fila por bloque agregado", {
     10, "NPCKP7", "Desea trabajar", "NPCKP5 == 2", "1", "Si", "K8",
     13, "NPCKP10", "Despues del empleo hizo diligencias", "NPCKP9 == 1", "1", "Si", "K15",
     14, "NPCKP11", "Hizo diligencias ultimos 12 meses", "NPCKP9 == 2", "1", "Si", "K15",
-    16, "NPCKP13", "Disponibilidad", "NPCKP12 >= 1", "1", "Si", "K58",
+    16, "NPCKP13", "Disponibilidad", "NPCKP5 == 1 | (NPCKP5 == 2 & NPCKP7 == 1)", "1", "Si", "K58",
     23, "NPCKP17", "Categoria ocupacional", "llega_K17", "1", "Asalariado", "K24",
     45, "NPCKP38A", "Antiguedad anios", "llega_K45", NA, "Anios", "NPCKP38B",
     57, "NPCKNP48", "Teletrabajo", "llega_K57", "2", "No", "K63",
