@@ -45,7 +45,10 @@ test_that("catalogo de reglas K tiene cobertura estructural minima", {
   reglas_norm <- stats::setNames(reglas$regla_r, reglas$variable)
 
   testthat::expect_true(grepl("NPCKP3 == 2", reglas_norm[["NPCKP4"]], fixed = TRUE))
-  testthat::expect_true(grepl("NPCKP8 %in% c(2,3,4,5,6,7,8,9,10)", reglas_norm[["NPCKP9"]], fixed = TRUE))
+  testthat::expect_identical(
+    reglas_norm[["NPCKP9"]],
+    "edad >= 10 & NPCKP8 %in% c(2, 3, 4, 5, 6, 7, 8)"
+  )
   testthat::expect_true(grepl("NPCKP10 == 1 | NPCKP11 == 1", reglas_norm[["NPCKP12"]], fixed = TRUE))
   testthat::expect_true(grepl("NPCKP5 == 1", reglas_norm[["NPCKP13"]], fixed = TRUE))
   testthat::expect_false(grepl("NPCKP12", reglas_norm[["NPCKP13"]], fixed = TRUE))
@@ -84,6 +87,218 @@ test_that("catalogo de reglas K tiene cobertura estructural minima", {
   }
 })
 
+test_that("NPCKP9 solo fluye para personas de 10 anos o mas con NPCKP8 de 2 a 8", {
+  casos <- tibble::tibble(
+    ORDEN = sprintf("%02d", seq_len(12)),
+    edad = c(10, 25, 25, 25, 25, 25, 25, 25, 9, NA, 25, NA),
+    NPCKP8 = c(2, 8, 1, 9, 10, 11, 12, 13, 2, 2, NA, NA),
+    esperado = c(
+      TRUE, TRUE,
+      FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE,
+      NA, NA, NA
+    )
+  )
+  dfs <- list(
+    K = tibble::tibble(
+      DIRECTORIO = rep("1", nrow(casos)),
+      SECUENCIA_P = rep("1", nrow(casos)),
+      ORDEN = casos$ORDEN,
+      NPCKP8 = casos$NPCKP8,
+      NPCKP9 = NA_integer_
+    ),
+    E = tibble::tibble(
+      DIRECTORIO = rep("1", nrow(casos)),
+      SECUENCIA_P = rep("1", nrow(casos)),
+      ORDEN = casos$ORDEN,
+      NPCEP4 = casos$edad
+    )
+  )
+
+  diagnostico <- diagnostico_flujo_capitulo_k(
+    dfs,
+    vars_cap_k = "NPCKP9"
+  )
+  flujo <- diagnostico$diagnostico_persona_variable |>
+    dplyr::arrange(.data$ORDEN)
+
+  testthat::expect_identical(flujo$ORDEN, casos$ORDEN)
+  testthat::expect_equal(flujo$debe_responder, casos$esperado)
+  testthat::expect_true(all(
+    flujo$estado_flujo[is.na(casos$esperado)] == "Flujo indeterminado"
+  ))
+
+  regla <- diagnostico$reglas_flujo |>
+    dplyr::filter(.data$variable == "NPCKP9")
+
+  testthat::expect_equal(nrow(regla), 1L)
+  testthat::expect_identical(regla$bloque, "02_busqueda_empleo")
+  testthat::expect_identical(
+    regla$fuente_regla,
+    "flujo_teorico_capitulo_k"
+  )
+  testthat::expect_identical(
+    regla$variables_previas_usadas,
+    "edad, NPCKP8"
+  )
+  testthat::expect_identical(
+    regla$regla_r,
+    "edad >= 10 & NPCKP8 %in% c(2, 3, 4, 5, 6, 7, 8)"
+  )
+  testthat::expect_identical(
+    regla$regla_aplicada,
+    "edad >= 10 & NPCKP8 %in% c(2, 3, 4, 5, 6, 7, 8)"
+  )
+  testthat::expect_equal(
+    regla$condicion_debe_responder,
+    paste(
+      "NPCKP9 debe responder si la persona tiene 10 a\u00f1os o m\u00e1s",
+      "y NPCKP8 est\u00e1 entre las categor\u00edas 2 y 8."
+    )
+  )
+})
+
+test_that("NPCKP33A1 exige un monto sustantivo y conserva flujo trivalente", {
+  casos <- tibble::tibble(
+    ORDEN = sprintf("%02d", seq_len(10)),
+    NPCKP17 = c(1, 1, 1, 1, 1, 1, 1, 4, 1, 1),
+    NPCKP33 = c(1, 1, 1, 1, 1, 1, 2, 1, 1, 1),
+    NPCKP33A = c(
+      "500000", "98", "98", "99", NA, "", "500000", "500000", "98", "99"
+    ),
+    NPCKP33A1 = c(1, NA, NA, NA, NA, NA, NA, NA, 1, 1),
+    esperado = c(
+      TRUE, FALSE, FALSE, FALSE, NA, NA, FALSE, FALSE, FALSE, FALSE
+    )
+  )
+  dfs <- list(
+    K = tibble::tibble(
+      DIRECTORIO = rep("1", nrow(casos)),
+      SECUENCIA_P = rep("1", nrow(casos)),
+      ORDEN = casos$ORDEN,
+      NPCKP2_1 = 1,
+      NPCKP17 = casos$NPCKP17,
+      NPCKP33 = casos$NPCKP33,
+      NPCKP33A = casos$NPCKP33A,
+      NPCKP33A1 = casos$NPCKP33A1
+    ),
+    E = tibble::tibble(
+      DIRECTORIO = rep("1", nrow(casos)),
+      SECUENCIA_P = rep("1", nrow(casos)),
+      ORDEN = casos$ORDEN,
+      NPCEP4 = 30
+    )
+  )
+
+  diagnostico <- diagnostico_flujo_capitulo_k(
+    dfs,
+    vars_cap_k = c("NPCKP33", "NPCKP33A", "NPCKP33A1")
+  )
+  flujo <- diagnostico$diagnostico_persona_variable |>
+    dplyr::filter(.data$variable == "NPCKP33A1") |>
+    dplyr::arrange(.data$ORDEN)
+
+  testthat::expect_identical(flujo$ORDEN, casos$ORDEN)
+  testthat::expect_equal(flujo$debe_responder, casos$esperado)
+  testthat::expect_true(all(
+    flujo$estado_flujo[c(5, 6)] == "Flujo indeterminado"
+  ))
+  testthat::expect_true(all(
+    flujo$respuesta_fuera_flujo[c(9, 10)]
+  ))
+  testthat::expect_true(all(
+    flujo$estado_flujo[c(9, 10)] == "Respuesta fuera de flujo"
+  ))
+
+  casos_numericos <- tibble::tibble(
+    ORDEN = sprintf("N%02d", seq_len(5)),
+    NPCKP33A = c(500000, 98, 99, 0, NA),
+    esperado = c(TRUE, FALSE, FALSE, FALSE, NA)
+  )
+  diagnostico_numerico <- diagnostico_flujo_capitulo_k(
+    list(
+      K = tibble::tibble(
+        DIRECTORIO = rep("2", nrow(casos_numericos)),
+        SECUENCIA_P = rep("1", nrow(casos_numericos)),
+        ORDEN = casos_numericos$ORDEN,
+        NPCKP2_1 = 1,
+        NPCKP17 = 1,
+        NPCKP33 = 1,
+        NPCKP33A = casos_numericos$NPCKP33A,
+        NPCKP33A1 = NA_integer_
+      ),
+      E = tibble::tibble(
+        DIRECTORIO = rep("2", nrow(casos_numericos)),
+        SECUENCIA_P = rep("1", nrow(casos_numericos)),
+        ORDEN = casos_numericos$ORDEN,
+        NPCEP4 = 30
+      )
+    ),
+    vars_cap_k = "NPCKP33A1"
+  )
+  flujo_numerico <- diagnostico_numerico$diagnostico_persona_variable |>
+    dplyr::arrange(.data$ORDEN)
+
+  testthat::expect_equal(
+    flujo_numerico$debe_responder,
+    casos_numericos$esperado
+  )
+
+  reglas <- diagnostico$reglas_flujo
+  regla_objetivo <- reglas |>
+    dplyr::filter(.data$variable == "NPCKP33A1")
+  regla_npckp33 <- reglas |>
+    dplyr::filter(.data$variable == "NPCKP33")
+  regla_npckp33a <- reglas |>
+    dplyr::filter(.data$variable == "NPCKP33A")
+
+  testthat::expect_equal(nrow(regla_objetivo), 1L)
+  testthat::expect_identical(
+    regla_objetivo$regla_r,
+    regla_objetivo$regla_aplicada
+  )
+  testthat::expect_true(grepl(
+    "NPCKP33 == 1",
+    regla_objetivo$regla_r,
+    fixed = TRUE
+  ))
+  testthat::expect_true(grepl(
+    "es_monto_sustantivo(NPCKP33A, permitir_cero = FALSE)",
+    regla_objetivo$regla_r,
+    fixed = TRUE
+  ))
+  testthat::expect_true(grepl(
+    "NPCKP33A",
+    regla_objetivo$variables_previas_usadas,
+    fixed = TRUE
+  ))
+  testthat::expect_true(grepl(
+    "c\u00f3digos especiales 98 y 99",
+    regla_objetivo$condicion_debe_responder,
+    fixed = TRUE
+  ))
+
+  testthat::expect_false(grepl(
+    "es_monto_sustantivo",
+    regla_npckp33$regla_r,
+    fixed = TRUE
+  ))
+  testthat::expect_false(grepl(
+    "NPCKP33A",
+    regla_npckp33$regla_r,
+    fixed = TRUE
+  ))
+  testthat::expect_true(grepl(
+    "NPCKP33 == 1",
+    regla_npckp33a$regla_r,
+    fixed = TRUE
+  ))
+  testthat::expect_false(grepl(
+    "es_monto_sustantivo",
+    regla_npckp33a$regla_r,
+    fixed = TRUE
+  ))
+})
+
 test_that("reglas visibles de K son expresiones evaluables con registro sintetico", {
   reglas <- catalogo_k_sintetico()
   expresiones <- lapply(reglas$regla_r, function(regla) parse(text = regla)[[1]])
@@ -96,7 +311,11 @@ test_that("reglas visibles de K son expresiones evaluables con registro sintetic
   registro$CLASE <- 1
 
   for (i in seq_along(expresiones)) {
-    valor <- eval(expresiones[[i]], envir = registro)
+    valor <- eval(
+      expresiones[[i]],
+      envir = registro,
+      enclos = asNamespace("analisisem2025")
+    )
     testthat::expect_equal(length(valor), 1L, info = reglas$variable[[i]])
     testthat::expect_true(is.logical(valor), info = reglas$variable[[i]])
   }

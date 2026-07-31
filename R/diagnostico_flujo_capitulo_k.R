@@ -411,9 +411,11 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   orden_flujo <- 0L
   add <- function(variable, bloque, debe, regla_aplicada,
                   fuente_regla = "flujo_teorico_capitulo_k", texto_libre = FALSE,
+                  dominio = NULL,
                   condicion_debe_responder = NULL, variables_previas_usadas = NULL,
                   regla_r = NULL, universo_base = "Personas de 10 anos o mas",
-                  comentario = NA_character_) {
+                  comentario = NA_character_,
+                  condicion_ya_incluye_universo_edad = FALSE) {
     orden_flujo <<- orden_flujo + 1L
     regla_r <- .diag_k_null(regla_r, regla_aplicada)
     regla_r <- .diag_k_expandir_aliases_regla(regla_r, variable_k23_final)
@@ -423,7 +425,15 @@ diagnostico_flujo_capitulo_k <- function(dfs,
       condicion_debe_responder,
       paste0(variable, " debe responder si ", regla_r, ".")
     )
-    condicion_debe_responder <- .diag_k_normalizar_regla_visible_edad_k(condicion_debe_responder)
+    if (isTRUE(condicion_ya_incluye_universo_edad)) {
+      condicion_debe_responder <- stringr::str_squish(
+        as.character(condicion_debe_responder)
+      )
+    } else {
+      condicion_debe_responder <- .diag_k_normalizar_regla_visible_edad_k(
+        condicion_debe_responder
+      )
+    }
     variables_previas_usadas <- .diag_k_null(
       variables_previas_usadas,
       .diag_k_extraer_variables_regla(regla_r)
@@ -443,7 +453,8 @@ diagnostico_flujo_capitulo_k <- function(dfs,
       regla_aplicada = regla_r,
       fuente_regla = fuente_visible,
       comentario = comentario,
-      texto_libre = isTRUE(texto_libre)
+      texto_libre = isTRUE(texto_libre),
+      dominio = as.integer(dominio)
     )
   }
   add_many <- function(vars, bloque, debe, regla_aplicada,
@@ -461,18 +472,26 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     if (!(var %in% names(data))) return(rep(NA, n))
     .diag_k_tiene_respuesta_vector(data[[var]])
   }
+  monto_sustantivo <- function(var, permitir_cero = FALSE) {
+    if (!(var %in% names(data))) return(rep(NA, n))
+    es_monto_sustantivo(
+      data[[var]],
+      permitir_cero = permitir_cero
+    )
+  }
 
   debe_npckp2_1 <- .diag_k_and(universo_k, eq("NPCKP1", 1))
   debe_npckp2 <- .diag_k_and(universo_k, .diag_k_or(in_set("NPCKP1", c(2, 3, 4, 6)), eq("NPCKP2_1", 2)))
   debe_npckp3 <- .diag_k_and(universo_k, eq("NPCKP2", 2))
   debe_npckp5_1 <- .diag_k_and(universo_k, eq("NPCKP3", 1))
-  debe_npckp6_1 <- .diag_k_and(universo_k, in_set("NPCKP5_1", 5:8))
-  debe_npckp4 <- .diag_k_and(universo_k, .diag_k_or(eq("NPCKP3", 2), in_set("NPCKP6_1", c(2, 3))))
   debe_npckp5 <- .diag_k_and(universo_k, eq("NPCKP4", 2))
   debe_npckp6 <- .diag_k_and(universo_k, eq("NPCKP5", 1))
   debe_npckp7 <- .diag_k_and(universo_k, eq("NPCKP5", 2))
   debe_npckp8 <- .diag_k_and(universo_k, eq("NPCKP7", 1))
-  debe_npckp9 <- .diag_k_and(universo_k, in_set("NPCKP8", 2:10))
+  debe_npckp9 <- .diag_k_and(
+    universo_k,
+    in_set("NPCKP8", c(2, 3, 4, 5, 6, 7, 8))
+  )
   debe_npckp10 <- .diag_k_and(universo_k, eq("NPCKP9", 1))
   debe_npckp11 <- .diag_k_and(universo_k, eq("NPCKP9", 2))
   debe_npckp12 <- .diag_k_and(universo_k, .diag_k_or(eq("NPCKP10", 1), eq("NPCKP11", 1)))
@@ -484,22 +503,28 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     )
   )
 
-  regla_entrada_ocupados <- paste0(
-    "NPCKP2_1 == 1 | NPCKP2 == 1 | ",
-    "(NPCKP3 == 1 & NPCKP5_1 %in% c(1,2,3,4)) | ",
-    "(NPCKP3 == 1 & NPCKP5_1 %in% c(5,6,7,8) & NPCKP6_1 == 1) | ",
-    "((NPCKP3 == 2 | NPCKP6_1 %in% c(2,3)) & NPCKP4 == 1)"
+  auditoria_independientes <- universo_independientes_k41_k44(
+    data,
+    edad_var = "edad",
+    posicion_var = variable_k23_final
+  )
+  regla_entrada_ocupados <-
+    attr(auditoria_independientes, "regla_entrada_ocupados_r")
+  debe_npckp6_1 <- dplyr::if_else(
+    auditoria_independientes$flujo_npckp6_1_indeterminado,
+    NA,
+    auditoria_independientes$debe_responder_npckp6_1
+  )
+  debe_npckp4 <- dplyr::if_else(
+    auditoria_independientes$flujo_npckp4_indeterminado,
+    NA,
+    auditoria_independientes$debe_responder_npckp4
   )
   regla_entrada_ocupados_edad <- paste0("edad >= 10 & (", regla_entrada_ocupados, ")")
-  entrada_ocupados <- .diag_k_and(
-    universo_k,
-    .diag_k_or(
-      eq("NPCKP2_1", 1),
-      eq("NPCKP2", 1),
-      .diag_k_and(eq("NPCKP3", 1), in_set("NPCKP5_1", 1:4)),
-      .diag_k_and(eq("NPCKP3", 1), in_set("NPCKP5_1", 5:8), eq("NPCKP6_1", 1)),
-      .diag_k_and(.diag_k_or(eq("NPCKP3", 2), in_set("NPCKP6_1", c(2, 3))), eq("NPCKP4", 1))
-    )
+  entrada_ocupados <- dplyr::if_else(
+    auditoria_independientes$flujo_ocupado_indeterminado,
+    NA,
+    auditoria_independientes$ocupado_consolidado
   )
   ocupado_pre_k23 <- entrada_ocupados
   debe_npckp18 <- entrada_ocupados
@@ -507,10 +532,22 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   regla_npckp17 <- regla_entrada_ocupados_edad
   regla_base_ocupados <- paste0("(", regla_entrada_ocupados_edad, ") & ", variable_k23_final, " %in% c(1,2,3,4,5,6,7,8)")
   regla_base_asalariados <- paste0("(", regla_entrada_ocupados_edad, ") & ", variable_k23_final, " %in% c(1,2,3,7)")
-  regla_base_independientes <- paste0("(", regla_entrada_ocupados_edad, ") & ", variable_k23_final, " %in% c(4,5,8)")
+  regla_base_independientes <- attr(auditoria_independientes, "regla_r")
+  if (!identical(variable_k23_final, "NPCKP17")) {
+    regla_base_independientes <- gsub(
+      "NPCKP17",
+      variable_k23_final,
+      regla_base_independientes,
+      fixed = TRUE
+    )
+  }
   ocupado_k23 <- .diag_k_and(entrada_ocupados, in_set(variable_k23_final, 1:8))
   asalariado <- .diag_k_and(entrada_ocupados, in_set(variable_k23_final, c(1, 2, 3, 7)))
-  independiente <- .diag_k_and(entrada_ocupados, in_set(variable_k23_final, c(4, 5, 8)))
+  independiente <- dplyr::if_else(
+    auditoria_independientes$flujo_indeterminado,
+    NA,
+    auditoria_independientes$universo_k41_k44
+  )
   no_ocupado <- .diag_k_and(
     universo_k,
     .diag_k_or(eq("NPCKP1", 5), eq("NPCKP7", 2), in_set("NPCKP13", c(1, 2)))
@@ -546,8 +583,8 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   add("NPCKP3", "01_entrada_actividad", debe_npckp3, "NPCKP2 == 2")
   add("NPCKP5_1", "01_entrada_actividad", debe_npckp5_1, "NPCKP3 == 1")
   add("NPCKP5_1A", "01_entrada_actividad", .diag_k_and(universo_k, eq("NPCKP5_1", 8)), "NPCKP5_1 == 8", texto_libre = TRUE)
-  add("NPCKP6_1", "01_entrada_actividad", debe_npckp6_1, "NPCKP5_1 %in% c(5,6,7,8)")
-  add("NPCKP4", "01_entrada_actividad", debe_npckp4, "NPCKP3 == 2 | NPCKP6_1 %in% c(2,3)")
+  add("NPCKP6_1", "01_entrada_actividad", debe_npckp6_1, attr(auditoria_independientes, "regla_npckp6_1_r"))
+  add("NPCKP4", "01_entrada_actividad", debe_npckp4, attr(auditoria_independientes, "regla_npckp4_r"))
 
   add("NPCKP5", "02_busqueda_empleo", debe_npckp5, "NPCKP4 == 2")
   add("NPCKP6", "02_busqueda_empleo", debe_npckp6, "NPCKP5 == 1")
@@ -555,7 +592,18 @@ diagnostico_flujo_capitulo_k <- function(dfs,
   add("NPCKP7", "02_busqueda_empleo", debe_npckp7, "NPCKP5 == 2")
   add("NPCKP8", "02_busqueda_empleo", debe_npckp8, "NPCKP7 == 1")
   add("NPCKP8A", "02_busqueda_empleo", .diag_k_and(universo_k, eq("NPCKP8", 13)), "NPCKP8 == 13", texto_libre = TRUE)
-  add("NPCKP9", "02_busqueda_empleo", debe_npckp9, "NPCKP8 %in% c(2,3,4,5,6,7,8,9,10)")
+  add(
+    "NPCKP9",
+    "02_busqueda_empleo",
+    debe_npckp9,
+    "NPCKP8 %in% c(2, 3, 4, 5, 6, 7, 8)",
+    condicion_debe_responder = paste(
+      "NPCKP9 debe responder si la persona tiene 10 a\u00f1os o m\u00e1s",
+      "y NPCKP8 est\u00e1 entre las categor\u00edas 2 y 8."
+    ),
+    variables_previas_usadas = "edad, NPCKP8",
+    condicion_ya_incluye_universo_edad = TRUE
+  )
   add("NPCKP10", "02_busqueda_empleo", debe_npckp10, "NPCKP9 == 1")
   add("NPCKP11", "02_busqueda_empleo", debe_npckp11, "NPCKP9 == 2")
   add("NPCKP12", "02_busqueda_empleo", debe_npckp12, "NPCKP10 == 1 | NPCKP11 == 1")
@@ -594,16 +642,67 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     c("NPCKP34AA", "NPCKP34A", "1"), c("NPCKP34BA", "NPCKP34B", "1"), c("NPCKP34CA", "NPCKP34C", "1"),
     c("NPCKP34DA", "NPCKP34D", "1"), c("NPCKP34EA", "NPCKP34E", "1"), c("NPCKP35AA", "NPCKP35A", "1")
   )) {
-    add(par[1], "05_rama_asalariados", .diag_k_and(asalariado, eq(par[2], as.numeric(par[3]))), paste0("(", regla_base_asalariados, ") & ", par[2], " == ", par[3]))
+    if (identical(par[1], "NPCKP33A1")) {
+      regla_npckp33a1 <- paste0(
+        "(",
+        regla_base_asalariados,
+        ") & NPCKP33 == 1 & ",
+        "es_monto_sustantivo(NPCKP33A, permitir_cero = FALSE)"
+      )
+      add(
+        "NPCKP33A1",
+        "05_rama_asalariados",
+        .diag_k_and(
+          asalariado,
+          eq("NPCKP33", 1),
+          monto_sustantivo("NPCKP33A", permitir_cero = FALSE)
+        ),
+        regla_npckp33a1,
+        condicion_debe_responder = paste(
+          "NPCKP33A1 debe responder si la persona tiene 10 a\u00f1os o m\u00e1s,",
+          "pertenece a la rama v\u00e1lida de asalariados, NPCKP33 == 1 y",
+          "NPCKP33A contiene un monto monetario sustantivo distinto de",
+          "los c\u00f3digos especiales 98 y 99."
+        ),
+        variables_previas_usadas = paste(
+          c(
+            .diag_k_extraer_variables_regla(regla_base_asalariados),
+            "NPCKP33",
+            "NPCKP33A"
+          ),
+          collapse = ", "
+        ),
+        condicion_ya_incluye_universo_edad = TRUE,
+        comentario = paste(
+          "Los c\u00f3digos 98 y 99 son respuestas observadas v\u00e1lidas",
+          "de NPCKP33A, pero no representan un monto que habilite NPCKP33A1.",
+          "Los faltantes y vac\u00edos de NPCKP33A conservan flujo indeterminado."
+        )
+      )
+    } else {
+      add(
+        par[1],
+        "05_rama_asalariados",
+        .diag_k_and(asalariado, eq(par[2], as.numeric(par[3]))),
+        paste0(
+          "(",
+          regla_base_asalariados,
+          ") & ",
+          par[2],
+          " == ",
+          par[3]
+        )
+      )
+    }
   }
   add("NPCKP29B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP29", 1)), paste0("(", regla_base_asalariados, ") & NPCKP29 == 1"))
   add("NPCKP30B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP30", 1)), paste0("(", regla_base_asalariados, ") & NPCKP30 == 1"))
   add("NPCKP31B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP31", 1)), paste0("(", regla_base_asalariados, ") & NPCKP31 == 1"))
   add("NPCKP32B", "05_rama_asalariados", .diag_k_and(asalariado, eq("NPCKP32", 1)), paste0("(", regla_base_asalariados, ") & NPCKP32 == 1"))
 
-  add_many(c("NPCKP36", "NPCKP37", "NPCKP43_1", "NPCKP44_1"),
+  add_many(c("NPCKP36", "NPCKP36A", "NPCKP37", "NPCKP43_1", "NPCKP44_1"),
            "06_rama_independientes", independiente, regla_base_independientes)
-  add("NPCKP43_1A", "06_rama_independientes", .diag_k_and(independiente, eq("NPCKP43_1", 1)), paste0("(", regla_base_independientes, ") & NPCKP43_1 == 1"), texto_libre = TRUE)
+  add("NPCKP43_1A", "06_rama_independientes", .diag_k_and(independiente, eq("NPCKP43_1", 1)), paste0("(", regla_base_independientes, ") & NPCKP43_1 == 1"), texto_libre = FALSE, dominio = c(1L, 2L))
   add("NPCKP44_1A", "06_rama_independientes", .diag_k_and(independiente, eq("NPCKP44_1", 11)), paste0("(", regla_base_independientes, ") & NPCKP44_1 == 11"), texto_libre = TRUE)
 
   add_many(c(
@@ -794,7 +893,8 @@ diagnostico_flujo_capitulo_k <- function(dfs,
       regla_aplicada = "NA",
       fuente_regla = "Regla aproximada pendiente de validación",
       comentario = "Variable solicitada en `vars_cap_k`, pero sin regla de flujo implementada.",
-      texto_libre = FALSE
+      texto_libre = FALSE,
+      dominio = integer()
     )
   }
   reglas_filtradas
@@ -813,6 +913,7 @@ diagnostico_flujo_capitulo_k <- function(dfs,
     fuente_regla = vapply(reglas, `[[`, character(1), "fuente_regla"),
     comentario = vapply(reglas, `[[`, character(1), "comentario"),
     texto_libre = vapply(reglas, `[[`, logical(1), "texto_libre"),
+    dominio = lapply(reglas, `[[`, "dominio"),
     regla_aplicada = vapply(reglas, `[[`, character(1), "regla_aplicada")
   ) %>%
     dplyr::mutate(variable_presente = .data$variable %in% names(data))
@@ -840,6 +941,7 @@ diagnostico_flujo_capitulo_k <- function(dfs,
       .data$comentario,
       .data$variable_presente,
       .data$texto_libre,
+      .data$dominio,
       .data$regla_aplicada
     ) %>%
     dplyr::distinct(.data$variable, .keep_all = TRUE) %>%

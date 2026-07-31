@@ -310,12 +310,15 @@ construir_nodos_flujo_k <- function(data, edad_var = "edad") {
     out
   }
 
-  entrada_ocupados <- universo_k & (
-    num_col("NPCKP2_1") %in% 1 |
-      num_col("NPCKP2") %in% 1 |
-      (num_col("NPCKP3") %in% 1 & num_col("NPCKP5_1") %in% 1:4) |
-      (num_col("NPCKP3") %in% 1 & num_col("NPCKP5_1") %in% 5:8 & num_col("NPCKP6_1") %in% 1) |
-      ((num_col("NPCKP3") %in% 2 | num_col("NPCKP6_1") %in% c(2, 3)) & num_col("NPCKP4") %in% 1)
+  auditoria_independientes <- universo_independientes_k41_k44(
+    data,
+    edad_var = if (is.null(edad_origen)) edad_var else edad_origen,
+    posicion_var = "NPCKP17"
+  )
+  entrada_ocupados <- dplyr::if_else(
+    auditoria_independientes$flujo_ocupado_indeterminado,
+    NA,
+    auditoria_independientes$ocupado_consolidado
   )
 
   llega_K17 <- entrada_ocupados

@@ -4,6 +4,8 @@ test_that("diagnostico_flujo_capitulo_k aplica universo de edad general", {
       DIRECTORIO = c("1", "1", "1"),
       SECUENCIA_P = c("1", "1", "1"),
       ORDEN = c("1", "2", "3"),
+      NPCKP3 = c(1, 1, 1),
+      NPCKP5_1 = c(5, 5, 5),
       NPCKP6_1 = c(2, 2, 2),
       NPCKP4 = c(NA, NA, NA)
     ),
@@ -115,6 +117,7 @@ test_that("reglas de entrada y busqueda usan rutas teoricas completas", {
       SECUENCIA_P = rep("1", 8),
       ORDEN = sprintf("%02d", seq_len(8)),
       NPCKP3 = c(2, 1, NA, NA, NA, NA, NA, NA),
+      NPCKP5_1 = c(NA, 5, NA, NA, NA, NA, NA, NA),
       NPCKP6_1 = c(NA, 2, NA, NA, NA, NA, NA, NA),
       NPCKP8 = c(NA, NA, 8, 9, 10, 11, NA, NA),
       NPCKP10 = c(NA, NA, NA, NA, NA, NA, 1, NA),
@@ -141,7 +144,7 @@ test_that("reglas de entrada y busqueda usan rutas teoricas completas", {
 
   esperados <- list(
     NPCKP4 = c(TRUE, TRUE, NA, NA, NA, NA, NA, NA),
-    NPCKP9 = c(NA, NA, TRUE, TRUE, TRUE, FALSE, NA, NA),
+    NPCKP9 = c(NA, NA, TRUE, FALSE, FALSE, FALSE, NA, NA),
     NPCKP12 = c(NA, NA, NA, NA, NA, NA, TRUE, TRUE),
     NPCKP13 = c(NA, NA, NA, NA, NA, NA, TRUE, TRUE)
   )
@@ -164,8 +167,8 @@ test_that("entrada ocupados abre K14-K23 y evita respuestas fuera de flujo", {
       ORDEN = sprintf("%02d", seq_len(8)),
       NPCKP2_1 = c(1, NA, NA, NA, NA, NA, NA, 2),
       NPCKP2 = c(NA, 1, NA, NA, NA, NA, NA, 2),
-      NPCKP3 = c(NA, NA, 1, 1, 2, NA, 1, 1),
-      NPCKP5_1 = c(NA, NA, 3, 5, NA, NA, 5, 5),
+      NPCKP3 = c(NA, NA, 1, 1, 2, 1, 1, 1),
+      NPCKP5_1 = c(NA, NA, 3, 5, NA, 5, 5, 5),
       NPCKP6_1 = c(NA, NA, NA, 1, NA, 2, 2, 2),
       NPCKP4 = c(NA, NA, NA, NA, 1, 1, 1, 2),
       NPCKP18 = c(NA, NA, NA, NA, NA, NA, 1, 1),

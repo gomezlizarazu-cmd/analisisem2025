@@ -528,37 +528,20 @@ base <- base |>
     cod_npckp17 = a_codigo(.data$NPCKP17)
   )
 
+auditoria_universo_k41_k44 <-
+  analisisem2025:::universo_independientes_k41_k44(
+    base,
+    edad_var = "edad_num",
+    posicion_var = "cod_npckp17"
+  )
+
 base <- base |>
   dplyr::mutate(
     universo_posicion_independiente =
-      .data$cod_npckp17 %in% c(4L, 5L, 8L),
+      auditoria_universo_k41_k44$posicion_independiente,
 
     universo_npckp36_37 =
-      dplyr::coalesce(
-        .data$edad_num >= 10 &
-          (
-            .data$cod_npckp2_1 == 1L |
-              .data$cod_npckp2 == 1L |
-              (
-                .data$cod_npckp3 == 1L &
-                  .data$cod_npckp5_1 %in% c(1L, 2L, 3L, 4L)
-              ) |
-              (
-                .data$cod_npckp3 == 1L &
-                  .data$cod_npckp5_1 %in% c(5L, 6L, 7L, 8L) &
-                  .data$cod_npckp6_1 == 1L
-              ) |
-              (
-                (
-                  .data$cod_npckp3 == 2L |
-                    .data$cod_npckp6_1 %in% c(2L, 3L)
-                ) &
-                  .data$cod_npckp4 == 1L
-              )
-          ) &
-          .data$cod_npckp17 %in% c(4L, 5L, 8L),
-        FALSE
-      ),
+      auditoria_universo_k41_k44$universo_k41_k44,
 
     responde_npckp36 = !es_vacio(.data$NPCKP36),
     responde_npckp36a = !es_vacio(.data$NPCKP36A),
